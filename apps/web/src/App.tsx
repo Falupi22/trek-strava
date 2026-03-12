@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "./stores/authStore";
+import { bikesApi } from "./api/bikes";
 import ConnectPage from "./pages/ConnectPage";
 import SetupPage from "./pages/SetupPage";
 import ProcessingPage from "./pages/ProcessingPage";
@@ -15,6 +17,19 @@ const globalStyle = `
   select option { background: #0f172a; }
 `;
 
+function HomeRedirect() {
+  const token = useAuthStore((s) => s.token);
+  const { data: bikes, isLoading } = useQuery({
+    queryKey: ["bikes"],
+    queryFn: bikesApi.list,
+    enabled: !!token,
+  });
+
+  if (!token) return <ConnectPage />;
+  if (isLoading) return null;
+  return <Navigate to={bikes && bikes.length > 0 ? "/dashboard" : "/setup"} />;
+}
+
 export default function App() {
   const token = useAuthStore((s) => s.token);
 
@@ -23,7 +38,7 @@ export default function App() {
       <style>{globalStyle}</style>
       <Routes>
         <Route path="/callback" element={<CallbackPage />} />
-        <Route path="/" element={!token ? <ConnectPage /> : <Navigate to="/setup" />} />
+        <Route path="/" element={<HomeRedirect />} />
         <Route path="/setup" element={token ? <SetupPage /> : <Navigate to="/" />} />
         <Route path="/processing" element={token ? <ProcessingPage /> : <Navigate to="/" />} />
         <Route path="/dashboard" element={token ? <DashboardPage /> : <Navigate to="/" />} />
