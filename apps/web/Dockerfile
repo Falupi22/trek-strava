@@ -16,7 +16,8 @@ RUN npm run build --workspace=apps/web
 # ── Nginx to serve the built SPA ──────────────────────────────────────
 FROM nginx:alpine AS runner
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
-COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+# Use templates/ so nginx substitutes ${API_UPSTREAM} at container startup
+COPY apps/web/nginx.conf /etc/nginx/templates/default.conf.template
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
