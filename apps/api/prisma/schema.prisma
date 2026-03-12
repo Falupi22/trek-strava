@@ -1,0 +1,82 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(uuid())
+  stravaAthleteId   BigInt   @unique @map("strava_athlete_id")
+  displayName       String   @map("display_name")
+  profileImageUrl   String?  @map("profile_image_url")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  stravaToken       StravaToken?
+  stravaSummary     StravaSummary?
+  bikes             Bike[]
+
+  @@map("users")
+}
+
+model StravaToken {
+  id               String   @id @default(uuid())
+  userId           String   @unique @map("user_id")
+  accessTokenEnc   String   @map("access_token_enc")
+  refreshTokenEnc  String   @map("refresh_token_enc")
+  expiresAt        DateTime @map("expires_at")
+  connectedAt      DateTime @default(now()) @map("connected_at")
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("strava_tokens")
+}
+
+model StravaSummary {
+  id             String    @id @default(uuid())
+  userId         String    @unique @map("user_id")
+  totalKm        Float     @default(0) @map("total_km")
+  totalClimbM    Int       @default(0) @map("total_climb_m")
+  totalDescentM  Int       @default(0) @map("total_descent_m")
+  activityCount  Int       @default(0) @map("activity_count")
+  lastSyncedAt   DateTime? @map("last_synced_at")
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("strava_summaries")
+}
+
+model Bike {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  brand          String
+  model          String?
+  purchaseYear   Int?     @map("purchase_year")
+  purchaseMonth  Int?     @map("purchase_month")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  components     BikeComponent[]
+
+  @@map("bikes")
+}
+
+model BikeComponent {
+  id            String   @id @default(uuid())
+  bikeId        String   @map("bike_id")
+  componentType String   @map("component_type")
+  brand         String?
+  purchaseDate  DateTime @map("purchase_date")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  bike          Bike     @relation(fields: [bikeId], references: [id], onDelete: Cascade)
+
+  @@unique([bikeId, componentType])
+  @@map("bike_components")
+}

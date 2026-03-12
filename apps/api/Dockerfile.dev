@@ -1,0 +1,19 @@
+FROM node:22-alpine
+RUN apk add --no-cache openssl
+WORKDIR /app
+
+COPY package.json ./
+COPY packages/shared/package.json ./packages/shared/
+COPY apps/api/package.json ./apps/api/
+
+RUN npm install --workspace=packages/shared --workspace=apps/api
+
+COPY packages/shared ./packages/shared
+COPY apps/api ./apps/api
+
+WORKDIR /app/apps/api
+RUN npx prisma generate
+
+EXPOSE 3000
+# Build shared first (produces dist/), then watch both shared (tsc) and api (tsx) together
+CMD ["sh", "-c", "cd /app && npm run build --workspace=packages/shared && cd /app/apps/api && npx tsx watch src/server.ts"]
