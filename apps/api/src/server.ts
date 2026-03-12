@@ -27,5 +27,5 @@ await app.register(stravaRoutes);
 app.get("/health", async () => ({ status: "ok" }));
 
 const port = Number(process.env.PORT ?? process.env.API_PORT ?? 3000);
-await app.listen({ port, host: "0.0.0.0" });
+await app.listen({ port, host: "::" });
 console.log(`API running on port ${port}`);
