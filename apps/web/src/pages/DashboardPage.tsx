@@ -42,6 +42,11 @@ export default function DashboardPage() {
     onSuccess: () => { clearToken(); navigate("/"); },
   });
 
+  const resetBikeMutation = useMutation({
+    mutationFn: () => bikesApi.deleteBike(resolvedBikeId!),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["bikes"] }); navigate("/setup"); },
+  });
+
   const strava = (data as any)?.stravaSummary;
   const components = (data as any)?.components ?? [];
   const quote = MOTIVATION.find((q) => strava && q.condition(strava));
@@ -60,9 +65,14 @@ export default function DashboardPage() {
             <h1 style={{ color: "#f97316", fontSize: 26, margin: 0, fontWeight: 900 }}>🚵 BikeHealth</h1>
             <p style={{ color: "#64748b", fontSize: 13, margin: "4px 0 0" }}>Component Health Report</p>
           </div>
-          <button onClick={() => disconnectMutation.mutate()} style={s.resetBtn}>
-            Disconnect Strava
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => resetBikeMutation.mutate()} style={s.resetBtn} disabled={!resolvedBikeId}>
+              Re-setup Bike
+            </button>
+            <button onClick={() => disconnectMutation.mutate()} style={s.resetBtn}>
+              Disconnect Strava
+            </button>
+          </div>
         </div>
 
         <div style={s.disclaimer}>
