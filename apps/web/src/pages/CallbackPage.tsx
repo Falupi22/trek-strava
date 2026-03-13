@@ -12,7 +12,7 @@ export default function CallbackPage() {
     const error = params.get("error");
     if (token) {
       setToken(token);
-      navigate("/");
+      navigate("/setup");
     } else {
       navigate(`/?error=${error ?? "unknown"}`);
     }
