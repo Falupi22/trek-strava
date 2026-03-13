@@ -96,6 +96,8 @@ services:
       - api
     ports:
       - "5174:5174"
+    environment:
+      VITE_API_URL: "http://api:3000"
     volumes:
       - ./apps/web/src:/app/apps/web/src
       - ./apps/web/vite.config.ts:/app/apps/web/vite.config.ts

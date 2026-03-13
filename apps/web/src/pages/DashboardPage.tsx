@@ -59,7 +59,7 @@ export default function DashboardPage() {
 
   return (
     <div style={s.screen}>
-      <div style={{ maxWidth: 700, width: "100%" }}>
+      <div style={{ maxWidth: "min(700px, 95vw)", width: "100%" }}>
         <div style={s.dashHeader}>
           <div>
             <h1 style={{ color: "#f97316", fontSize: 26, margin: 0, fontWeight: 900 }}>🚵 BikeHealth</h1>
