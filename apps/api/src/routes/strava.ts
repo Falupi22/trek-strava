@@ -37,8 +37,11 @@ export async function stravaRoutes(app: FastifyInstance) {
 
   // Webhook events (POST)
   app.post("/api/strava/webhook", async (req, reply) => {
-    const signature = req.headers["x-strava-hmac-sha1"] as string;
-    const payload = JSON.stringify(req.body);
+    const signature =
+      (req.headers["x-strava-hmac-sha1"] as string) ??
+      (req.headers["x-strava-signature"] as string);
+
+    const payload = (req as any).rawBody ?? JSON.stringify(req.body);
 
     if (!validateWebhookSignature(payload, signature)) {
       reply.code(403).send("Invalid signature");

@@ -138,16 +138,24 @@ export async function registerWebhook(): Promise<void> {
   console.log("Webhook registered:", data);
 }
 
-export function validateWebhookSignature(payload: string, signature: string): boolean {
-  const secret = process.env.STRAVA_CLIENT_SECRET;
-  if (!secret) return false;
+export function validateWebhookSignature(payload: string, signature?: string): boolean {
+  try {
+    const secret = process.env.STRAVA_CLIENT_SECRET;
+    if (!secret || !signature) return false;
 
-  const expectedSignature = crypto
-    .createHmac("sha1", secret)
-    .update(payload)
-    .digest("hex");
+    const expectedSignature = crypto
+      .createHmac("sha1", secret)
+      .update(payload)
+      .digest("hex");
 
-  return crypto.timingSafeEqual(Buffer.from(signature, "hex"), Buffer.from(expectedSignature, "hex"));
+    const sigBuffer = Buffer.from(signature, "hex");
+    const expectedBuffer = Buffer.from(expectedSignature, "hex");
+
+    if (sigBuffer.length !== expectedBuffer.length) return false;
+    return crypto.timingSafeEqual(sigBuffer, expectedBuffer);
+  } catch {
+    return false;
+  }
 }
 
 export async function getUserIdFromAthleteId(athleteId: number): Promise<string | null> {
