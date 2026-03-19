@@ -13,12 +13,18 @@ await app.register(cors, {
 });
 await app.register(cookie);
 
-// Allow POST requests with Content-Type: application/json but no body and keep raw body for webhook signature verification
-app.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
+// Allow POST requests with Content-Type: application/json (including charset) and keep raw body for webhook signature verification
+app.addContentTypeParser(/^application\/(json|.*\+json)/, { parseAs: "string" }, (req, body, done) => {
   (req as any).rawBody = body as string;
-  if (!body || body === "") { done(null, {}); return; }
-  try { done(null, JSON.parse(body as string)); }
-  catch (e) { done(e as Error, undefined); }
+  if (!body || body === "") {
+    done(null, {});
+    return;
+  }
+  try {
+    done(null, JSON.parse(body as string));
+  } catch (e) {
+    done(e as Error, undefined);
+  }
 });
 
 await app.register(authRoutes);

@@ -37,13 +37,17 @@ export async function stravaRoutes(app: FastifyInstance) {
 
   // Webhook events (POST)
   app.post("/api/strava/webhook", async (req, reply) => {
-    const signature =
-      (req.headers["x-strava-hmac-sha1"] as string) ??
-      (req.headers["x-strava-signature"] as string);
+    const signatureHeaderName =
+      Object.keys(req.headers).find((h) =>
+        ["x-strava-hmac-sha1", "x-strava-signature"].includes(h.toLowerCase())
+      );
 
+    const signature = signatureHeaderName ? (req.headers[signatureHeaderName] as string) : undefined;
     const payload = (req as any).rawBody ?? JSON.stringify(req.body);
 
-    if (!validateWebhookSignature(payload, signature)) {
+    const valid = validateWebhookSignature(payload, signature);
+    if (!valid) {
+      req.log.warn({ signatureHeaderName, signatureLength: signature?.length ?? 0 }, "Invalid Strava webhook signature");
       reply.code(403).send("Invalid signature");
       return;
     }
