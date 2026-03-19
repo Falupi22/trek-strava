@@ -35,6 +35,7 @@ export default function DashboardPage() {
     queryKey: ["components", resolvedBikeId],
     queryFn: () => bikesApi.getComponents(resolvedBikeId!),
     enabled: !!resolvedBikeId,
+    refetchInterval: 300000, // Poll every 5 minutes for updates
   });
 
   const disconnectMutation = useMutation({

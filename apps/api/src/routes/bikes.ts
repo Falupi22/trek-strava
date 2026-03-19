@@ -85,7 +85,7 @@ export async function bikeRoutes(app: FastifyInstance) {
         lastSyncedAt: summary?.lastSyncedAt?.toISOString() ?? null,
       };
 
-      const result = components.map((c) => {
+      const result = components.map((c: any) => {
         const meta = COMPONENT_META.find((m) => m.id === c.componentType)!;
         const health = calcWear(meta, c.purchaseDate.toISOString().split("T")[0], strava);
         return {

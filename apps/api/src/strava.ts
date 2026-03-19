@@ -1,5 +1,6 @@
 import { prisma } from "./db.js";
 import { encrypt, decrypt } from "./encryption.js";
+import crypto from "crypto";
 
 const STRAVA_BASE = "https://www.strava.com/api/v3";
 const TOKEN_URL = "https://www.strava.com/oauth/token";
@@ -107,4 +108,52 @@ export async function revokeToken(userId: string): Promise<void> {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}` },
   }).catch(() => {}); // best-effort
+}
+
+// Webhook functions
+export async function registerWebhook(): Promise<void> {
+  const callbackUrl = process.env.STRAVA_WEBHOOK_CALLBACK_URL;
+  const verifyToken = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN;
+  if (!callbackUrl || !verifyToken) {
+    throw new Error("STRAVA_WEBHOOK_CALLBACK_URL and STRAVA_WEBHOOK_VERIFY_TOKEN must be set");
+  }
+
+  const res = await fetch("https://www.strava.com/api/v3/push_subscriptions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: Number(process.env.STRAVA_CLIENT_ID),
+      client_secret: process.env.STRAVA_CLIENT_SECRET,
+      callback_url: callbackUrl,
+      verify_token: verifyToken,
+    }),
+  });
+
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`Webhook registration failed: ${res.status} ${error}`);
+  }
+
+  const data = await res.json();
+  console.log("Webhook registered:", data);
+}
+
+export function validateWebhookSignature(payload: string, signature: string): boolean {
+  const secret = process.env.STRAVA_CLIENT_SECRET;
+  if (!secret) return false;
+
+  const expectedSignature = crypto
+    .createHmac("sha1", secret)
+    .update(payload)
+    .digest("hex");
+
+  return crypto.timingSafeEqual(Buffer.from(signature, "hex"), Buffer.from(expectedSignature, "hex"));
+}
+
+export async function getUserIdFromAthleteId(athleteId: number): Promise<string | null> {
+  const user = await prisma.user.findUnique({
+    where: { stravaAthleteId: BigInt(athleteId) },
+    select: { id: true },
+  });
+  return user?.id ?? null;
 }

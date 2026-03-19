@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { syncUser } from "../sync.js";
+import { registerWebhook, validateWebhookSignature, getUserIdFromAthleteId } from "../strava.js";
 
 export async function stravaRoutes(app: FastifyInstance) {
   app.get("/api/strava/summary", { preHandler: requireAuth }, async (req, reply) => {
@@ -20,5 +21,51 @@ export async function stravaRoutes(app: FastifyInstance) {
     const { userId } = (req as any).session;
     syncUser(userId).catch(console.error); // fire and forget
     return { message: "Sync started" };
+  });
+
+  // Webhook verification (GET)
+  app.get("/api/strava/webhook", async (req, reply) => {
+    const query = req.query as any;
+    const { "hub.mode": mode, "hub.challenge": challenge, "hub.verify_token": verifyToken } = query;
+
+    if (mode === "subscribe" && verifyToken === process.env.STRAVA_WEBHOOK_VERIFY_TOKEN) {
+      return { "hub.challenge": challenge };
+    }
+
+    reply.code(403).send("Forbidden");
+  });
+
+  // Webhook events (POST)
+  app.post("/api/strava/webhook", async (req, reply) => {
+    const signature = req.headers["x-strava-hmac-sha1"] as string;
+    const payload = JSON.stringify(req.body);
+
+    if (!validateWebhookSignature(payload, signature)) {
+      reply.code(403).send("Invalid signature");
+      return;
+    }
+
+    const events = Array.isArray(req.body) ? req.body : [req.body];
+
+    for (const event of events) {
+      if (event.object_type === "activity" && event.aspect_type === "create") {
+        const userId = await getUserIdFromAthleteId(event.owner_id);
+        if (userId) {
+          syncUser(userId).catch(console.error);
+        }
+      }
+    }
+
+    return { message: "ok" };
+  });
+
+  // Register webhook (for admin/testing)
+  app.post("/api/strava/webhook/register", async (req, reply) => {
+    try {
+      await registerWebhook();
+      return { message: "Webhook registered" };
+    } catch (error) {
+      reply.code(500).send({ error: (error as Error).message });
+    }
   });
 }
