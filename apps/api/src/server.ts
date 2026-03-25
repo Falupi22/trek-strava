@@ -5,14 +5,9 @@ import { authRoutes } from "./routes/auth.js";
 import { bikeRoutes } from "./routes/bikes.js";
 import { stravaRoutes } from "./routes/strava.js";
 
-const isProduction = process.env.NODE_ENV === "production";
-
 const app = Fastify({
   logger: {
-    level: process.env.LOG_LEVEL ?? (isProduction ? "info" : "debug"),
-    ...(isProduction
-      ? {}
-      : { transport: { target: "pino-pretty", options: { colorize: true } } }),
+    level: process.env.LOG_LEVEL ?? (process.env.NODE_ENV === "production" ? "info" : "debug"),
   },
 });
 
