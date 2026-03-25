@@ -5,7 +5,16 @@ import { authRoutes } from "./routes/auth.js";
 import { bikeRoutes } from "./routes/bikes.js";
 import { stravaRoutes } from "./routes/strava.js";
 
-const app = Fastify({ logger: process.env.NODE_ENV === "development" });
+const isProduction = process.env.NODE_ENV === "production";
+
+const app = Fastify({
+  logger: {
+    level: process.env.LOG_LEVEL ?? (isProduction ? "info" : "debug"),
+    ...(isProduction
+      ? {}
+      : { transport: { target: "pino-pretty", options: { colorize: true } } }),
+  },
+});
 
 await app.register(cors, {
   origin: process.env.CORS_ORIGIN ?? "http://localhost:6000",
@@ -14,18 +23,22 @@ await app.register(cors, {
 await app.register(cookie);
 
 // Allow POST requests with Content-Type: application/json (including charset) and keep raw body for webhook signature verification
-app.addContentTypeParser(/^application\/(json|.*\+json)/, { parseAs: "string" }, (req, body, done) => {
-  (req as any).rawBody = body as string;
-  if (!body || body === "") {
-    done(null, {});
-    return;
-  }
-  try {
-    done(null, JSON.parse(body as string));
-  } catch (e) {
-    done(e as Error, undefined);
-  }
-});
+app.addContentTypeParser(
+  /^application\/(json|.*\+json)/,
+  { parseAs: "string" },
+  (req, body, done) => {
+    (req as any).rawBody = body as string;
+    if (!body || body === "") {
+      done(null, {});
+      return;
+    }
+    try {
+      done(null, JSON.parse(body as string));
+    } catch (e) {
+      done(e as Error, undefined);
+    }
+  },
+);
 
 await app.register(authRoutes);
 await app.register(bikeRoutes);

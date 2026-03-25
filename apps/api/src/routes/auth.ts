@@ -3,7 +3,6 @@ import { prisma } from "../db.js";
 import { encrypt } from "../encryption.js";
 import { signSession } from "../session.js";
 import { exchangeCode } from "../strava.js";
-import { syncUser } from "../sync.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 
 export async function authRoutes(app: FastifyInstance) {
@@ -61,9 +60,6 @@ export async function authRoutes(app: FastifyInstance) {
             expiresAt,
           },
         });
-
-        // Kick off initial sync in background
-        syncUser(user.id).catch(console.error);
 
         const sessionToken = await signSession({
           userId: user.id,

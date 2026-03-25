@@ -66,7 +66,6 @@ export function calcWear(
   const descentWear = component.wearFactors.includes("descent")
     ? Math.floor(strava.totalDescentM / 2000) * 2
     : 0;
-
   const totalWear = ageWear + kmWear + climbWear + descentWear;
   const healthPercent = Math.max(0, Math.min(100, 100 - totalWear));
 

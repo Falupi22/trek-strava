@@ -12,7 +12,6 @@ import { s } from "../styles";
 const MOTIVATION = [
   { condition: (d: any) => d.totalKm > 5000, text: "We thought our system crashed from all those kilometers you've been grinding. Got a trail coming up soon? 🚵" },
   { condition: (d: any) => d.totalClimbM > 5000, text: "How about some flat ground? Your bike does nothing but climb all day — it's not like we've got Everest around here ⛰️" },
-  { condition: (d: any) => d.totalDescentM > 4000, text: "Your bike has descended more than most skiers this year. The brake pads say thanks… and request a vacation 🙏" },
   { condition: () => true, text: "Your bike is doing incredible work out there! The wrench is proud of you 🤘" },
 ];
 
@@ -85,7 +84,6 @@ export default function DashboardPage() {
             {[
               { val: Math.round(strava.totalKm).toLocaleString() + " km", label: "Total Distance 🛣️" },
               { val: strava.totalClimbM.toLocaleString() + "m", label: "Total Climbing ⛰️" },
-              { val: strava.totalDescentM.toLocaleString() + "m", label: "Total Descent 🏔️" },
             ].map((stat) => (
               <div key={stat.label} style={s.statCard}>
                 <div style={s.statValue}>{stat.val}</div>

@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { COMPONENT_META, calcWear } from "@bikehealth/shared";
+import { syncUser } from "../sync.js";
 
 export async function bikeRoutes(app: FastifyInstance) {
   // List bikes
@@ -44,6 +45,9 @@ export async function bikeRoutes(app: FastifyInstance) {
         },
       });
     }
+
+    // Trigger initial sync now that we have a bike with a purchase year
+    syncUser(userId).catch(console.error);
 
     return reply.status(201).send(bike);
   });
