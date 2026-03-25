@@ -4,7 +4,6 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import { syncUser } from "../sync.js";
 import {
   registerWebhook,
-  validateWebhookSignature,
   getUserIdFromAthleteId,
 } from "../strava.js";
 
@@ -57,25 +56,6 @@ export async function stravaRoutes(app: FastifyInstance) {
 
   // Webhook events (POST)
   app.post("/api/strava/webhook", async (req, reply) => {
-    const signatureHeaderName = Object.keys(req.headers).find((h) =>
-      ["x-strava-hmac-sha1", "x-strava-signature"].includes(h.toLowerCase()),
-    );
-
-    const signature = signatureHeaderName
-      ? (req.headers[signatureHeaderName] as string)
-      : undefined;
-    const payload = (req as any).rawBody ?? JSON.stringify(req.body);
-
-    const valid = validateWebhookSignature(payload, signature);
-    if (!valid) {
-      req.log.warn(
-        { signatureHeaderName, signatureLength: signature?.length ?? 0 },
-        "Invalid Strava webhook signature",
-      );
-      reply.code(403).send("Invalid signature");
-      return;
-    }
-
     const events = Array.isArray(req.body) ? req.body : [req.body];
 
     for (const event of events) {
