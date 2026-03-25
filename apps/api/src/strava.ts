@@ -78,6 +78,17 @@ async function getValidAccessToken(userId: string): Promise<string> {
   return data.access_token;
 }
 
+export async function fetchActivity(userId: string, activityId: number): Promise<StravaActivity | null> {
+  const token = await getValidAccessToken(userId);
+  const res = await fetch(`${STRAVA_BASE}/activities/${activityId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  const a = await res.json() as StravaActivity;
+  if (a.type !== "Ride" && a.type !== "VirtualRide") return null;
+  return a;
+}
+
 export async function fetchActivitiesSince(userId: string, since: Date): Promise<StravaActivity[]> {
   const token = await getValidAccessToken(userId);
   const after = Math.floor(since.getTime() / 1000);

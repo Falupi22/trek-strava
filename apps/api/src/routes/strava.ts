@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { syncUser } from "../sync.js";
+import { syncUser, syncActivityById } from "../sync.js";
 import {
   registerWebhook,
   getUserIdFromAthleteId,
@@ -62,7 +62,7 @@ export async function stravaRoutes(app: FastifyInstance) {
       if (event.object_type === "activity" && event.aspect_type === "create") {
         const userId = await getUserIdFromAthleteId(event.owner_id);
         if (userId) {
-          syncUser(userId).catch(console.error);
+          syncActivityById(userId, event.object_id).catch(console.error);
         }
       }
     }

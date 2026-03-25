@@ -1,5 +1,5 @@
 import { prisma } from "./db.js";
-import { fetchActivitiesSince } from "./strava.js";
+import { fetchActivitiesSince, fetchActivity } from "./strava.js";
 import { logger } from "./logger.js";
 
 const syncing = new Map<string, Promise<void>>();
@@ -63,6 +63,36 @@ async function _syncUser(userId: string): Promise<void> {
     },
   });
   logger.info({ userId, addedKm, addedClimb, addedDescent, count: activities.length }, "[sync] user synced");
+}
+
+export async function syncActivityById(userId: string, activityId: number): Promise<void> {
+  const activity = await fetchActivity(userId, activityId);
+  if (!activity) return;
+
+  const addedKm = activity.distance / 1000;
+  const addedClimb = Math.round(activity.total_elevation_gain);
+  const range = (activity.elev_high ?? 0) - (activity.elev_low ?? 0);
+  const addedDescent = Math.round(Math.max(0, activity.total_elevation_gain - range));
+
+  await prisma.stravaSummary.upsert({
+    where: { userId },
+    create: {
+      user: { connect: { id: userId } },
+      totalKm: addedKm,
+      totalClimbM: addedClimb,
+      totalDescentM: addedDescent,
+      activityCount: 1,
+      lastSyncedAt: new Date(),
+    },
+    update: {
+      totalKm: { increment: addedKm },
+      totalClimbM: { increment: addedClimb },
+      totalDescentM: { increment: addedDescent },
+      activityCount: { increment: 1 },
+      lastSyncedAt: new Date(),
+    },
+  });
+  logger.info({ userId, activityId, addedKm, addedClimb, addedDescent }, "[sync] activity synced");
 }
 
 export async function syncAllUsers(): Promise<void> {
