@@ -7,6 +7,7 @@ import { useAuthStore } from "../stores/authStore";
 import { apiFetch } from "../api/client";
 import DonutChart from "../components/DonutChart";
 import UpdateModal from "../components/UpdateModal";
+import StravaAttribution from "../components/StravaAttribution";
 import { s, theme } from "../styles";
 
 const MOTIVATION = [
@@ -88,186 +89,190 @@ export default function DashboardPage() {
     );
 
   return (
-    <div style={s.screen}>
-      <div style={{ maxWidth: "min(700px, 95vw)", width: "100%" }}>
-        <div style={s.dashHeader}>
-          <div>
-            <h1
-              style={{
-                color: theme.dark,
-                fontSize: 26,
-                margin: 0,
-                fontWeight: 700,
-              }}
-            >
-              🚵 BikeHealth
-            </h1>
-            <p style={{ color: theme.muted, fontSize: 13, margin: "4px 0 0" }}>
-              Component Health Report
-            </p>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              onClick={() => resetBikeMutation.mutate()}
-              style={s.resetBtn}
-              disabled={!resolvedBikeId}
-            >
-              Re-setup Bike
-            </button>
-            <button
-              onClick={() => disconnectMutation.mutate()}
-              style={s.resetBtn}
-            >
-              Disconnect Strava
-            </button>
-          </div>
-        </div>
-
-        <div style={s.disclaimer}>
-          ⚠️ These results are estimates only. Component failures can occur
-          independently of wear calculations. If in doubt, visit your local shop
-          for a professional inspection.
-        </div>
-
-        {strava && (
-          <div style={s.statsRow}>
-            {[
-              {
-                val: Math.round(strava.totalKm).toLocaleString() + " km",
-                label: "Total Distance 🛣️",
-              },
-              {
-                val: strava.totalClimbM.toLocaleString() + "m",
-                label: "Total Climbing ⛰️",
-              },
-            ].map((stat) => (
-              <div key={stat.label} style={s.statCard}>
-                <div style={s.statValue}>{stat.val}</div>
-                <div style={s.statLabel}>{stat.label}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div style={s.compGrid}>
-          {components.map((comp: any) => {
-            const meta = COMPONENT_META.find((m) => m.id === comp.type)!;
-            return (
-              <div
-                key={comp.id}
+    <>
+      <div style={s.screen}>
+        <div style={{ maxWidth: "min(700px, 95vw)", width: "100%" }}>
+          <div style={s.dashHeader}>
+            <div>
+              <h1
                 style={{
-                  ...s.compCard,
-                  borderColor: getHealthColor(comp.healthPercent) + "44",
+                  color: theme.dark,
+                  fontSize: 26,
+                  margin: 0,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
                 }}
               >
-                <DonutChart
-                  percent={comp.healthPercent}
-                  icon={meta.icon}
-                  label={meta.name}
-                />
-                <div style={{ marginTop: 8, textAlign: "center" }}>
-                  {comp.healthPercent >= 70 ? (
-                    <span style={{ color: "#22c55e", fontSize: 18 }}>👍</span>
-                  ) : comp.healthPercent >= 40 ? (
-                    <span style={{ fontSize: 18 }}>⚠️</span>
-                  ) : (
-                    <span style={{ color: "#ef4444", fontSize: 18 }}>👎</span>
-                  )}
+                CTC Bike Health
+              </h1>
+              <p
+                style={{ color: theme.muted, fontSize: 13, margin: "4px 0 0" }}
+              >
+                Component Health Report
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => resetBikeMutation.mutate()}
+                style={s.resetBtn}
+                disabled={!resolvedBikeId}
+              >
+                Re-setup Bike
+              </button>
+              <button
+                onClick={() => disconnectMutation.mutate()}
+                style={s.resetBtn}
+              >
+                Disconnect Strava
+              </button>
+            </div>
+          </div>
+
+          <div style={s.disclaimer}>
+            ⚠️ These results are estimates only. Component failures can occur
+            independently of wear calculations. If in doubt, visit your local
+            shop for a professional inspection.
+          </div>
+
+          {strava && (
+            <div style={s.statsRow}>
+              {[
+                {
+                  val: Math.round(strava.totalKm).toLocaleString() + " km",
+                  label: "Total Distance 🛣️",
+                },
+                {
+                  val: strava.totalClimbM.toLocaleString() + "m",
+                  label: "Total Climbing ⛰️",
+                },
+              ].map((stat) => (
+                <div key={stat.label} style={s.statCard}>
+                  <div style={s.statValue}>{stat.val}</div>
+                  <div style={s.statLabel}>{stat.label}</div>
                 </div>
-                {comp.healthPercent < 70 && (
-                  <p
-                    style={{
-                      color: theme.muted,
-                      fontSize: 10,
-                      textAlign: "center",
-                      margin: "6px 0 0",
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    {comp.healthPercent < 40
-                      ? "We recommend a shop visit soon"
-                      : "Still OK — ride safe out there"}
-                  </p>
-                )}
-                <button
-                  onClick={() => setUpdateModal({ ...comp, meta })}
-                  style={s.updateBtn}
+              ))}
+            </div>
+          )}
+
+          <div style={s.compGrid}>
+            {components.map((comp: any) => {
+              const meta = COMPONENT_META.find((m) => m.id === comp.type)!;
+              return (
+                <div
+                  key={comp.id}
+                  style={{
+                    ...s.compCard,
+                    borderColor: getHealthColor(comp.healthPercent) + "44",
+                  }}
                 >
-                  Update Component
-                </button>
-              </div>
-            );
-          })}
+                  <DonutChart
+                    percent={comp.healthPercent}
+                    icon={meta.icon}
+                    label={meta.name}
+                  />
+                  <div style={{ marginTop: 8, textAlign: "center" }}>
+                    {comp.healthPercent >= 70 ? (
+                      <span style={{ color: "#22c55e", fontSize: 18 }}>👍</span>
+                    ) : comp.healthPercent >= 40 ? (
+                      <span style={{ fontSize: 18 }}>⚠️</span>
+                    ) : (
+                      <span style={{ color: "#ef4444", fontSize: 18 }}>👎</span>
+                    )}
+                  </div>
+                  {comp.healthPercent < 70 && (
+                    <p
+                      style={{
+                        color: theme.muted,
+                        fontSize: 10,
+                        textAlign: "center",
+                        margin: "6px 0 0",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {comp.healthPercent < 40
+                        ? "We recommend a shop visit soon"
+                        : "Still OK — ride safe out there"}
+                    </p>
+                  )}
+                  <button
+                    onClick={() => setUpdateModal({ ...comp, meta })}
+                    style={s.updateBtn}
+                  >
+                    Update Component
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          {quote && (
+            <div style={s.motivationCard}>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: 14,
+                  color: theme.mid,
+                  lineHeight: 1.6,
+                }}
+              >
+                {quote.text}
+              </p>
+            </div>
+          )}
         </div>
 
-        {quote && (
-          <div style={s.motivationCard}>
-            <p
+        <div style={{ textAlign: "center", marginTop: 32, paddingBottom: 24 }}>
+          {(me as any)?.stravaAthleteId && (
+            <a
+              href={`https://www.strava.com/athletes/${(me as any).stravaAthleteId}`}
+              target="_blank"
+              rel="noopener noreferrer"
               style={{
-                margin: 0,
-                fontSize: 14,
-                color: theme.mid,
-                lineHeight: 1.6,
+                display: "block",
+                color: theme.muted,
+                fontSize: 12,
+                marginBottom: 20,
+                textDecoration: "none",
               }}
             >
-              {quote.text}
-            </p>
+              View your Strava profile →
+            </a>
+          )}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: 16,
+              marginBottom: 12,
+            }}
+          >
+            <a
+              href="/privacy"
+              style={{
+                color: theme.muted,
+                fontSize: 12,
+                textDecoration: "none",
+              }}
+            >
+              Privacy Policy
+            </a>
+            <a
+              href="/terms"
+              style={{
+                color: theme.muted,
+                fontSize: 12,
+                textDecoration: "none",
+              }}
+            >
+              Terms of Service
+            </a>
           </div>
-        )}
+        </div>
       </div>
 
-      <div style={{ textAlign: "center", marginTop: 32, paddingBottom: 24 }}>
-        {(me as any)?.stravaAthleteId && (
-          <a
-            href={`https://www.strava.com/athletes/${(me as any).stravaAthleteId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: "block",
-              color: theme.muted,
-              fontSize: 12,
-              marginBottom: 20,
-              textDecoration: "none",
-            }}
-          >
-            View your Strava profile →
-          </a>
-        )}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            gap: 16,
-            marginBottom: 12,
-          }}
-        >
-          <a
-            href="/privacy"
-            style={{
-              color: theme.muted,
-              fontSize: 12,
-              textDecoration: "none",
-            }}
-          >
-            Privacy Policy
-          </a>
-          <a
-            href="/terms"
-            style={{
-              color: theme.muted,
-              fontSize: 12,
-              textDecoration: "none",
-            }}
-          >
-            Terms of Service
-          </a>
-        </div>
-        <img
-          src="/api_logo_pwrdBy_strava_horiz_orange.png"
-          alt="Powered by Strava"
-          style={{ height: 24, opacity: 0.8 }}
-        />
-      </div>
+      <StravaAttribution />
 
       {updateModal && (
         <UpdateModal
@@ -279,6 +284,6 @@ export default function DashboardPage() {
           }}
         />
       )}
-    </div>
+    </>
   );
 }
