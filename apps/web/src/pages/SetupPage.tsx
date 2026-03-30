@@ -116,10 +116,10 @@ export default function SetupPage() {
             <label style={s.label}>Which components were replaced?</label>
             {COMPONENT_META.map((comp) => (
               <div key={comp.id} style={{ marginBottom: 10 }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", color: "#e2e8f0", fontSize: 14 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", color: "#363636", fontSize: 14 }}>
                   <input type="checkbox" checked={!!selectedComponents[comp.id]}
                     onChange={() => toggleComp(comp.id)}
-                    style={{ width: 15, height: 15, accentColor: "#f97316" }} />
+                    style={{ width: 15, height: 15, accentColor: "#ed1b24" }} />
                   {comp.icon} {comp.name}
                 </label>
                 {selectedComponents[comp.id] && (
@@ -144,7 +144,7 @@ export default function SetupPage() {
         )}
 
         {mutation.isError && (
-          <p style={{ color: "#ef4444", fontSize: 13 }}>Something went wrong. Please try again.</p>
+          <p style={{ color: "#363636", fontSize: 13 }}>Something went wrong. Please try again.</p>
         )}
 
         <button onClick={() => mutation.mutate()} disabled={!canProceed || mutation.isPending}

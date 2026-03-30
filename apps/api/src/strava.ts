@@ -5,6 +5,41 @@ import crypto from "crypto";
 const STRAVA_BASE = "https://www.strava.com/api/v3";
 const TOKEN_URL = "https://www.strava.com/oauth/token";
 
+// Rate limiting: 100 requests per 15 minutes
+const requestTimestamps: number[] = [];
+const RATE_LIMIT = 100;
+const RATE_WINDOW = 15 * 60 * 1000; // 15 minutes
+
+async function checkRateLimit(): Promise<void> {
+  const now = Date.now();
+  // Remove old timestamps
+  while (
+    requestTimestamps.length > 0 &&
+    requestTimestamps[0] < now - RATE_WINDOW
+  ) {
+    requestTimestamps.shift();
+  }
+  if (requestTimestamps.length >= RATE_LIMIT) {
+    const waitTime = RATE_WINDOW - (now - requestTimestamps[0]);
+    throw new Error(
+      `Rate limit exceeded. Try again in ${Math.ceil(waitTime / 1000)} seconds.`,
+    );
+  }
+  requestTimestamps.push(now);
+}
+
+async function rateLimitedFetch(
+  url: string,
+  options: RequestInit,
+): Promise<Response> {
+  await checkRateLimit();
+  const res = await fetch(url, options);
+  if (res.status === 429) {
+    throw new Error("Strava rate limit exceeded. Please try again later.");
+  }
+  return res;
+}
+
 export interface StravaActivity {
   id: number;
   type: string;
@@ -21,7 +56,7 @@ export async function exchangeCode(code: string): Promise<{
   expiresAt: Date;
   athlete: { id: number; firstname: string; lastname: string; profile: string };
 }> {
-  const res = await fetch(TOKEN_URL, {
+  const res = await rateLimitedFetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -32,7 +67,7 @@ export async function exchangeCode(code: string): Promise<{
     }),
   });
   if (!res.ok) throw new Error(`Strava token exchange failed: ${res.status}`);
-  const data = await res.json() as any;
+  const data = (await res.json()) as any;
   return {
     accessToken: data.access_token,
     refreshToken: data.refresh_token,
@@ -53,7 +88,7 @@ async function getValidAccessToken(userId: string): Promise<string> {
   }
 
   // Refresh
-  const res = await fetch(TOKEN_URL, {
+  const res = await rateLimitedFetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -64,7 +99,7 @@ async function getValidAccessToken(userId: string): Promise<string> {
     }),
   });
   if (!res.ok) throw new Error("Token refresh failed");
-  const data = await res.json() as any;
+  const data = (await res.json()) as any;
 
   await prisma.stravaToken.update({
     where: { userId },
@@ -78,34 +113,64 @@ async function getValidAccessToken(userId: string): Promise<string> {
   return data.access_token;
 }
 
-export async function fetchActivity(userId: string, activityId: number): Promise<StravaActivity | null> {
+export async function fetchActivity(
+  userId: string,
+  activityId: number,
+): Promise<StravaActivity | null> {
   const token = await getValidAccessToken(userId);
-  const res = await fetch(`${STRAVA_BASE}/activities/${activityId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await rateLimitedFetch(
+    `${STRAVA_BASE}/activities/${activityId}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
   if (!res.ok) return null;
-  const a = await res.json() as StravaActivity;
+  const a = (await res.json()) as StravaActivity;
   if (a.type !== "Ride" && a.type !== "VirtualRide") return null;
   return a;
 }
 
-export async function fetchActivitiesSince(userId: string, since: Date): Promise<StravaActivity[]> {
+export async function fetchActivitiesSince(
+  userId: string,
+  since: Date,
+): Promise<StravaActivity[]> {
   const token = await getValidAccessToken(userId);
   const after = Math.floor(since.getTime() / 1000);
   const activities: StravaActivity[] = [];
   let page = 1;
+  const PARALLEL = 5;
+
+  const fetchPage = (p: number) =>
+    rateLimitedFetch(
+      `${STRAVA_BASE}/athlete/activities?after=${after}&per_page=200&page=${p}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    ).then((r) =>
+      r.ok ? (r.json() as Promise<StravaActivity[]>) : Promise.resolve([]),
+    );
 
   while (true) {
-    const res = await fetch(
-      `${STRAVA_BASE}/athlete/activities?after=${after}&per_page=200&page=${page}`,
-      { headers: { Authorization: `Bearer ${token}` } }
+    const batches = await Promise.all(
+      Array.from({ length: PARALLEL }, (_, i) => fetchPage(page + i)),
     );
-    if (!res.ok) break;
-    const batch = await res.json() as StravaActivity[];
-    if (batch.length === 0) break;
-    activities.push(...batch.filter((a) => a.type === "Ride" || a.type === "VirtualRide"));
-    if (batch.length < 200) break;
-    page++;
+    console.log(
+      `Fetched pages ${page} to ${page + PARALLEL - 1}, got ${batches.reduce((sum, b) => sum + b.length, 0)} activities`,
+    );
+
+    let done = false;
+    for (const batch of batches) {
+      activities.push(
+        ...batch.filter((a) => a.type === "Ride" || a.type === "VirtualRide"),
+      );
+      if (batch.length < 200) {
+        done = true;
+        break;
+      }
+    }
+
+    if (done) break;
+    page += PARALLEL;
   }
 
   return activities;
@@ -126,7 +191,9 @@ export async function registerWebhook(): Promise<void> {
   const callbackUrl = process.env.STRAVA_WEBHOOK_CALLBACK_URL;
   const verifyToken = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN;
   if (!callbackUrl || !verifyToken) {
-    throw new Error("STRAVA_WEBHOOK_CALLBACK_URL and STRAVA_WEBHOOK_VERIFY_TOKEN must be set");
+    throw new Error(
+      "STRAVA_WEBHOOK_CALLBACK_URL and STRAVA_WEBHOOK_VERIFY_TOKEN must be set",
+    );
   }
 
   const res = await fetch("https://www.strava.com/api/v3/push_subscriptions", {
@@ -149,7 +216,10 @@ export async function registerWebhook(): Promise<void> {
   console.log("Webhook registered:", data);
 }
 
-export function validateWebhookSignature(payload: string, signature?: string): boolean {
+export function validateWebhookSignature(
+  payload: string,
+  signature?: string,
+): boolean {
   try {
     const secret = process.env.STRAVA_CLIENT_SECRET;
     if (!secret || !signature) return false;
@@ -169,7 +239,9 @@ export function validateWebhookSignature(payload: string, signature?: string): b
   }
 }
 
-export async function getUserIdFromAthleteId(athleteId: number): Promise<string | null> {
+export async function getUserIdFromAthleteId(
+  athleteId: number,
+): Promise<string | null> {
   const user = await prisma.user.findUnique({
     where: { stravaAthleteId: BigInt(athleteId) },
     select: { id: true },

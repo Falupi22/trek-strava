@@ -8,6 +8,7 @@ import { requireAuth } from "../middleware/requireAuth.js";
 export async function authRoutes(app: FastifyInstance) {
   // Redirect to Strava OAuth
   app.get("/auth/strava", async (req, reply) => {
+    console.log("Initiating Strava OAuth flow");
     const params = new URLSearchParams({
       client_id: process.env.STRAVA_CLIENT_ID ?? "",
       redirect_uri: process.env.STRAVA_REDIRECT_URI ?? "",
@@ -90,13 +91,13 @@ export async function authRoutes(app: FastifyInstance) {
     };
   });
 
-  // Disconnect Strava + delete all data
+  // Disconnect Strava + delete all user data (GDPR / Strava compliance)
   app.post(
     "/auth/disconnect",
     { preHandler: requireAuth },
     async (req, reply) => {
       const session = (req as any).session;
-      await prisma.stravaToken.delete({ where: { userId: session.userId } });
+      await prisma.user.delete({ where: { id: session.userId } });
       return { success: true };
     },
   );

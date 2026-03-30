@@ -33,7 +33,7 @@ export default function UpdateModal({ comp, onClose, onSave }: Props) {
   return (
     <div style={s.overlay} onClick={onClose}>
       <div style={s.modal} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ color: "#f97316", marginTop: 0, marginBottom: 20 }}>
+        <h3 style={{ color: "#363636", marginTop: 0, marginBottom: 20 }}>
           Update {comp.meta?.icon} {comp.meta?.name}
         </h3>
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { stravaApi } from "../api/strava";
-import { s } from "../styles";
+import { s, theme } from "../styles";
 
 const MESSAGES = ["Analyzing ride data…", "Checking component wear…", "Calculating health scores…", "Preparing your report…"];
 
@@ -33,10 +33,10 @@ export default function ProcessingPage() {
     <div style={{ ...s.screen, justifyContent: "center" }}>
       <div style={{ textAlign: "center" }}>
         <div style={{ fontSize: 72, marginBottom: 24, display: "inline-block", animation: "spin 2s linear infinite" }}>⚙️</div>
-        <h2 style={{ color: "#f97316", fontSize: 20, maxWidth: 360, margin: "0 auto 12px" }}>
+        <h2 style={{ color: theme.dark, fontSize: 20, maxWidth: 360, margin: "0 auto 12px" }}>
           Hold tight — the wrench is diagnosing your patient{dots}
         </h2>
-        <p style={{ color: "#64748b", fontSize: 15 }}>{MESSAGES[msgIdx]}</p>
+        <p style={{ color: theme.muted, fontSize: 15 }}>{MESSAGES[msgIdx]}</p>
         <div style={s.progressBar}><div style={s.progressFill} /></div>
       </div>
     </div>

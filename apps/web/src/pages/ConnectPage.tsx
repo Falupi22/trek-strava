@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { s } from "../styles";
+import { useSearchParams, Link } from "react-router-dom";
+import { s, theme } from "../styles";
 
 export default function ConnectPage() {
   const [agreed, setAgreed] = useState(false);
@@ -21,34 +21,98 @@ export default function ConnectPage() {
         </div>
 
         {error && (
-          <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid #ef4444", borderRadius: 10, padding: "10px 14px", color: "#fca5a5", fontSize: 13, marginBottom: 20 }}>
+          <div
+            style={{
+              background: "rgba(237,27,36,0.07)",
+              border: `1px solid ${theme.red}`,
+              borderRadius: 8,
+              padding: "10px 14px",
+              color: theme.dark,
+              fontSize: 13,
+              marginBottom: 20,
+            }}
+          >
             Connection failed. Please try again.
           </div>
         )}
 
         <div style={s.privacyBox}>
-          <div style={{ fontSize: 15, marginBottom: 10, color: "#e2e8f0", fontWeight: 600 }}>🔒 Privacy Statement</div>
-          <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.7, margin: "0 0 14px" }}>
-            Data received from Strava will be used for <strong style={{ color: "#e2e8f0" }}>personal analysis only</strong>. Your information will not be shared with others, used to train models, or stored beyond what is needed for this service.
+          <div
+            style={{
+              fontSize: 14,
+              marginBottom: 10,
+              color: theme.dark,
+              fontWeight: 600,
+            }}
+          >
+            🔒 Privacy Statement
+          </div>
+          <p
+            style={{
+              fontSize: 13,
+              color: theme.mid,
+              lineHeight: 1.7,
+              margin: "0 0 14px",
+            }}
+          >
+            Data received from Strava will be used for{" "}
+            <strong style={{ color: theme.dark }}>
+              personal analysis only
+            </strong>
+            . Your information will not be shared with others, used to train
+            models, or stored beyond what is needed for this service.
           </p>
-          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", color: "#94a3b8", fontSize: 13 }}>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              cursor: "pointer",
+              color: theme.mid,
+              fontSize: 13,
+            }}
+          >
             <input
               type="checkbox"
               checked={agreed}
               onChange={(e) => setAgreed(e.target.checked)}
-              style={{ width: 15, height: 15, accentColor: "#f97316" }}
+              style={{ width: 15, height: 15, accentColor: theme.red }}
             />
-            I understand and agree to the privacy terms
+            I understand and agree to the{" "}
+            <Link
+              to="/privacy"
+              style={{ color: theme.dark, textDecoration: "underline" }}
+            >
+              privacy policy
+            </Link>{" "}
+            and{" "}
+            <Link
+              to="/terms"
+              style={{ color: theme.dark, textDecoration: "underline" }}
+            >
+              terms of service
+            </Link>
           </label>
         </div>
 
         <button
           onClick={handleConnect}
           disabled={!agreed}
-          style={{ ...s.stravaBtn, opacity: agreed ? 1 : 0.4, cursor: agreed ? "pointer" : "not-allowed" }}
+          style={{
+            background: "none",
+            border: "none",
+            padding: 0,
+            cursor: agreed ? "pointer" : "not-allowed",
+            opacity: agreed ? 1 : 0.4,
+            display: "block",
+            margin: "0 auto",
+          }}
         >
-          <span style={{ fontSize: 20 }}>🔗</span>
-          <span>Connect with Strava</span>
+          <img
+            src="/btn_strava_connect_with_orange.png"
+            alt="Connect with Strava"
+            style={{ height: 48, display: "block" }}
+          />
         </button>
       </div>
     </div>
