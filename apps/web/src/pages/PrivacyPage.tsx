@@ -125,9 +125,11 @@ export default function PrivacyPage() {
             </a>
           </p>
         </div>
-      </div>
 
-      <StravaAttribution />
+        <div style={{ marginTop: 12 }}>
+          <StravaAttribution />
+        </div>
+      </div>
     </>
   );
 }

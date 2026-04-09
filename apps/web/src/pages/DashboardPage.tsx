@@ -270,9 +270,11 @@ export default function DashboardPage() {
             </a>
           </div>
         </div>
-      </div>
 
-      <StravaAttribution />
+        <div style={{ marginTop: 12 }}>
+          <StravaAttribution />
+        </div>
+      </div>
 
       {updateModal && (
         <UpdateModal

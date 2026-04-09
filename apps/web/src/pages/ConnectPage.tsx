@@ -117,9 +117,11 @@ export default function ConnectPage() {
             />
           </button>
         </div>
-      </div>
 
-      <StravaAttribution />
+        <div style={{ marginTop: 12 }}>
+          <StravaAttribution />
+        </div>
+      </div>
     </>
   );
 }

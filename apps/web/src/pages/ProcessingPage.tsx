@@ -73,9 +73,11 @@ export default function ProcessingPage() {
             <div style={s.progressFill} />
           </div>
         </div>
-      </div>
 
-      <StravaAttribution />
+        <div style={{ marginTop: 12 }}>
+          <StravaAttribution />
+        </div>
+      </div>
     </>
   );
 }

@@ -129,9 +129,11 @@ export default function TermsPage() {
             location.
           </p>
         </div>
-      </div>
 
-      <StravaAttribution />
+        <div style={{ marginTop: 12 }}>
+          <StravaAttribution />
+        </div>
+      </div>
     </>
   );
 }

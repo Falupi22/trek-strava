@@ -8,7 +8,7 @@ export default function StravaAttribution() {
         justifyContent: "center",
         alignItems: "center",
         gap: 8,
-        marginBottom: 30,
+        margin: "12px 0 0",
         color: theme.muted,
         fontSize: 12,
       }}

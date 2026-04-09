@@ -291,9 +291,11 @@ export default function SetupPage() {
             {mutation.isPending ? "Saving…" : "Check My Bike Health 🔍"}
           </button>
         </div>
-      </div>
 
-      <StravaAttribution />
+        <div style={{ marginTop: 12 }}>
+          <StravaAttribution />
+        </div>
+      </div>
     </>
   );
 }
