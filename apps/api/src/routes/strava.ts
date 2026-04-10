@@ -74,6 +74,19 @@ export async function stravaRoutes(app: FastifyInstance) {
         }
       }
 
+      // Strava API compliance: deleted activities must be removed immediately.
+      // Since we store aggregated totals (not raw records), we delete the
+      // summary and trigger a full resync so the deleted activity is excluded.
+      if (event.object_type === "activity" && event.aspect_type === "delete") {
+        const userId = await getUserIdFromAthleteId(event.owner_id);
+        if (userId) {
+          await prisma.stravaSummary
+            .delete({ where: { userId } })
+            .catch(() => {});
+          syncUser(userId).catch(console.error);
+        }
+      }
+
       // Strava API compliance: delete user data when they revoke access
       if (event.object_type === "athlete" && event.aspect_type === "delete") {
         const userId = await getUserIdFromAthleteId(event.owner_id);

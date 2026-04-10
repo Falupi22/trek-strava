@@ -7,6 +7,8 @@ import SetupPage from "./pages/SetupPage";
 import ProcessingPage from "./pages/ProcessingPage";
 import DashboardPage from "./pages/DashboardPage";
 import CallbackPage from "./pages/CallbackPage";
+import PrivacyPage from "./pages/PrivacyPage";
+import TermsPage from "./pages/TermsPage";
 
 const globalStyle = `
   @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap');
@@ -53,6 +55,8 @@ export default function App() {
           path="/dashboard"
           element={token ? <DashboardPage /> : <Navigate to="/" />}
         />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
       </Routes>
     </>
   );

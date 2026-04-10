@@ -30,6 +30,7 @@ export default function DashboardPage() {
   const clearToken = useAuthStore((s) => s.clearToken);
   const queryClient = useQueryClient();
   const [updateModal, setUpdateModal] = useState<any>(null);
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [bikeId, setBikeId] = useState<string | null>(null);
 
   const { data: me } = useQuery({
@@ -122,7 +123,7 @@ export default function DashboardPage() {
                 Re-setup Bike
               </button>
               <button
-                onClick={() => disconnectMutation.mutate()}
+                onClick={() => setShowDisconnectConfirm(true)}
                 style={s.resetBtn}
               >
                 Disconnect Strava
@@ -250,9 +251,7 @@ export default function DashboardPage() {
             }}
           >
             <a
-              href="https://www.strava.com/legal/privacy"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="/privacy"
               style={{
                 color: theme.muted,
                 fontSize: 12,
@@ -262,9 +261,7 @@ export default function DashboardPage() {
               Privacy Policy
             </a>
             <a
-              href="https://www.strava.com/legal/terms"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="/terms"
               style={{
                 color: theme.muted,
                 fontSize: 12,
@@ -280,6 +277,72 @@ export default function DashboardPage() {
           <StravaAttribution />
         </div>
       </div>
+
+      {showDisconnectConfirm && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              padding: 32,
+              maxWidth: 420,
+              width: "90%",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+            }}
+          >
+            <h2 style={{ margin: "0 0 12px", color: theme.dark, fontSize: 18 }}>
+              Disconnect Strava?
+            </h2>
+            <p style={{ color: theme.mid, fontSize: 14, lineHeight: 1.7, margin: "0 0 24px" }}>
+              As required by the{" "}
+              <a
+                href="https://www.strava.com/legal/api"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: theme.dark, textDecoration: "underline" }}
+              >
+                Strava API Agreement
+              </a>
+              , disconnecting will permanently delete all your data from our
+              systems within 48 hours — including your profile, activity
+              statistics, and bike configurations. This cannot be undone.
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowDisconnectConfirm(false)}
+                style={{ ...s.resetBtn, opacity: 1 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowDisconnectConfirm(false);
+                  disconnectMutation.mutate();
+                }}
+                style={{
+                  ...s.resetBtn,
+                  background: theme.red,
+                  color: "#fff",
+                  border: "none",
+                  opacity: 1,
+                }}
+              >
+                Yes, disconnect & delete my data
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {updateModal && (
         <UpdateModal

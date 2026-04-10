@@ -48,6 +48,17 @@ export default function PrivacyPage() {
           </p>
 
           <h2 style={{ color: theme.dark, fontSize: 16, marginBottom: 8 }}>
+            Consent & Authorization
+          </h2>
+          <p>
+            Before accessing any of your Strava data, we obtain your explicit
+            consent through OAuth 2.0 authentication. You will see a permission
+            screen from Strava requesting access to your activity data. You can
+            withdraw consent at any time by disconnecting your Strava account
+            from the dashboard.
+          </p>
+
+          <h2 style={{ color: theme.dark, fontSize: 16, marginBottom: 8 }}>
             What data we collect
           </h2>
           <p>
@@ -78,13 +89,27 @@ export default function PrivacyPage() {
           </ul>
 
           <h2 style={{ color: theme.dark, fontSize: 16, marginBottom: 8 }}>
-            Data storage
+            Data retention & caching
           </h2>
           <p>
-            We store aggregated activity statistics (total distance, total
-            elevation) and your manually entered bike/component data. Raw Strava
-            activity records are not stored. Data is kept only as long as your
-            account is active.
+            When you sync, we fetch your Strava activities, aggregate them into
+            totals (distance, elevation, activity count), and immediately
+            discard the raw records — individual activities are never written to
+            our database. Aggregated totals are kept only while your account is
+            active. Upon disconnection or data deletion requests, all data is
+            permanently removed from our systems within 48 hours.
+          </p>
+
+          <h2 style={{ color: theme.dark, fontSize: 16, marginBottom: 8 }}>
+            Security & encryption
+          </h2>
+          <p>
+            All data transmitted between your device and our servers is
+            encrypted using HTTPS. We maintain industry-standard security
+            measures to protect your personal data from unauthorized access,
+            alteration, or disclosure. Any suspected security breaches are
+            reported to Strava within 24 hours as required by the Strava API
+            Agreement.
           </p>
 
           <h2 style={{ color: theme.dark, fontSize: 16, marginBottom: 8 }}>
@@ -102,7 +127,18 @@ export default function PrivacyPage() {
             >
               Strava Privacy Policy
             </a>
-            .
+            . We comply with the Strava API Agreement, including all data
+            protection and privacy requirements.
+          </p>
+
+          <h2 style={{ color: theme.dark, fontSize: 16, marginBottom: 8 }}>
+            Data storage
+          </h2>
+          <p>
+            We store aggregated activity statistics (total distance, total
+            elevation) and your manually entered bike/component data. Raw Strava
+            activity records are not stored. Data is kept only as long as your
+            account is active.
           </p>
 
           <h2 style={{ color: theme.dark, fontSize: 16, marginBottom: 8 }}>
@@ -111,8 +147,16 @@ export default function PrivacyPage() {
           <p>
             You can disconnect your Strava account at any time from the
             dashboard. Disconnecting permanently deletes all your data from our
-            systems immediately, including your profile, activity statistics,
-            and bike configurations.
+            systems within 48 hours, including your profile, activity
+            statistics, and bike configurations. Your data will also be deleted
+            if you deauthorize this app through your Strava account settings or
+            if Strava notifies us of deauthorization.
+          </p>
+          <p>
+            This privacy policy complies with the General Data Protection
+            Regulation (GDPR) and UK GDPR requirements. We monitor your Strava
+            account connection status to ensure compliance with deauthorization
+            requirements under the Strava API Agreement.
           </p>
           <p>
             To request data deletion or for any privacy questions, contact us

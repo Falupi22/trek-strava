@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import StravaAttribution from "../components/StravaAttribution";
 import { s, theme } from "../styles";
 
@@ -81,23 +81,19 @@ export default function ConnectPage() {
                 style={{ width: 15, height: 15, accentColor: theme.red }}
               />
               I understand and agree to the{" "}
-              <a
-                href="https://www.strava.com/legal/privacy"
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                to="/privacy"
                 style={{ color: theme.dark, textDecoration: "underline" }}
               >
                 privacy policy
-              </a>{" "}
+              </Link>{" "}
               and{" "}
-              <a
-                href="https://www.strava.com/legal/terms"
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                to="/terms"
                 style={{ color: theme.dark, textDecoration: "underline" }}
               >
                 terms of service
-              </a>
+              </Link>
             </label>
           </div>
 
