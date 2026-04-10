@@ -10,6 +10,15 @@ import UpdateModal from "../components/UpdateModal";
 import StravaAttribution from "../components/StravaAttribution";
 import { s, theme } from "../styles";
 
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 5)  return { text: "Burning the midnight oil", emoji: "🌙" };
+  if (h < 12) return { text: "Good morning", emoji: "☀️" };
+  if (h < 17) return { text: "Good afternoon", emoji: "🌤️" };
+  if (h < 21) return { text: "Good evening", emoji: "🌇" };
+  return       { text: "Good night", emoji: "🌙" };
+}
+
 const MOTIVATION = [
   {
     condition: (d: any) => d.totalKm > 5000,
@@ -71,6 +80,7 @@ export default function DashboardPage() {
     },
   });
 
+  const greeting = getGreeting();
   const strava = (data as any)?.stravaSummary;
   const components = (data as any)?.components ?? [];
   const quote = MOTIVATION.find((q) => strava && q.condition(strava));
@@ -93,41 +103,47 @@ export default function DashboardPage() {
     <>
       <div style={s.screen}>
         <div style={{ maxWidth: "min(700px, 95vw)", width: "100%" }}>
-          <div style={s.dashHeader}>
-            <div>
-              <h1
-                style={{
-                  color: theme.dark,
-                  fontSize: 26,
-                  margin: 0,
-                  fontWeight: 700,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                CTC Bike Health
-              </h1>
-              <p
-                style={{ color: theme.muted, fontSize: 13, margin: "4px 0 0" }}
-              >
-                Component Health Report
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => resetBikeMutation.mutate()}
-                style={s.resetBtn}
-                disabled={!resolvedBikeId}
-              >
-                Re-setup Bike
-              </button>
-              <button
-                onClick={() => setShowDisconnectConfirm(true)}
-                style={s.resetBtn}
-              >
-                Disconnect Strava
-              </button>
+          {/* Header */}
+          <div
+            style={{
+              background: theme.cardBg,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 16,
+              padding: "28px 32px",
+              marginBottom: 24,
+              boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+            }}
+          >
+            {/* Greeting row */}
+            <p style={{ margin: "0 0 14px", fontSize: 13, color: theme.muted, fontWeight: 500 }}>
+              {greeting.emoji}&nbsp; {greeting.text}{(me as any)?.displayName ? `, ${(me as any).displayName}` : ""}
+            </p>
+
+            {/* Title + buttons row */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+              <div>
+                <h1 style={{ color: theme.dark, fontSize: 24, margin: 0, fontWeight: 700, letterSpacing: -0.5 }}>
+                  CTC Bike Health
+                </h1>
+                <p style={{ color: theme.muted, fontSize: 12, margin: "5px 0 0", letterSpacing: 0.2 }}>
+                  Component Health Report
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                <button
+                  onClick={() => resetBikeMutation.mutate()}
+                  style={s.resetBtn}
+                  disabled={!resolvedBikeId}
+                >
+                  Re-setup Bike
+                </button>
+                <button
+                  onClick={() => setShowDisconnectConfirm(true)}
+                  style={s.resetBtn}
+                >
+                  Disconnect
+                </button>
+              </div>
             </div>
           </div>
 
