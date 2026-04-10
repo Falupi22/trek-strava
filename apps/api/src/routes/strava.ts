@@ -102,7 +102,7 @@ export async function stravaRoutes(app: FastifyInstance) {
   });
 
   // Register webhook (for admin/testing)
-  app.post("/api/strava/webhook/register", async (req, reply) => {
+  app.post("/api/strava/webhook/register", { preHandler: requireAuth }, async (req, reply) => {
     try {
       await registerWebhook();
       return { message: "Webhook registered" };

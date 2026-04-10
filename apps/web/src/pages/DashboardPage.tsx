@@ -268,23 +268,21 @@ export default function DashboardPage() {
           >
             <a
               href="/privacy"
-              style={{
-                color: theme.muted,
-                fontSize: 12,
-                textDecoration: "none",
-              }}
+              style={{ color: theme.muted, fontSize: 12, textDecoration: "none" }}
             >
               Privacy Policy
             </a>
             <a
               href="/terms"
-              style={{
-                color: theme.muted,
-                fontSize: 12,
-                textDecoration: "none",
-              }}
+              style={{ color: theme.muted, fontSize: 12, textDecoration: "none" }}
             >
               Terms of Service
+            </a>
+            <a
+              href="mailto:privacy@ctcbikehealth.app"
+              style={{ color: theme.muted, fontSize: 12, textDecoration: "none" }}
+            >
+              Support
             </a>
           </div>
         </div>

@@ -130,6 +130,24 @@ export default function PrivacyPage() {
             . We comply with the Strava API Agreement, including all data
             protection and privacy requirements.
           </p>
+          <p>
+            Please note that Strava may independently collect usage data related
+            to how you interact with this application through the Strava API, in
+            accordance with their own privacy policy.
+          </p>
+          <p>
+            Some activity data may originate from Garmin devices. Where
+            applicable, such data is provided by Garmin and subject to{" "}
+            <a
+              href="https://www.garmin.com/en-US/privacy/app-privacy/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: theme.dark, textDecoration: "underline" }}
+            >
+              Garmin's Privacy Policy
+            </a>
+            .
+          </p>
 
           <h2 style={{ color: theme.dark, fontSize: 16, marginBottom: 8 }}>
             Data storage

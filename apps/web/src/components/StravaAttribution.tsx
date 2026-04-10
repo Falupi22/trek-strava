@@ -5,12 +5,10 @@ export default function StravaAttribution() {
     <div
       style={{
         display: "flex",
-        justifyContent: "center",
+        flexDirection: "column",
         alignItems: "center",
-        gap: 8,
+        gap: 6,
         margin: "12px 0 0",
-        color: theme.muted,
-        fontSize: 12,
       }}
     >
       <img
@@ -18,6 +16,9 @@ export default function StravaAttribution() {
         alt="Powered by Strava"
         style={{ height: 20 }}
       />
+      <span style={{ color: theme.muted, fontSize: 11 }}>
+        Activity data may include data sourced from Garmin
+      </span>
     </div>
   );
 }

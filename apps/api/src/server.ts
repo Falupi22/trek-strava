@@ -1,6 +1,8 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
+import helmet from "@fastify/helmet";
+import rateLimit from "@fastify/rate-limit";
 import { authRoutes } from "./routes/auth.js";
 import { bikeRoutes } from "./routes/bikes.js";
 import { stravaRoutes } from "./routes/strava.js";
@@ -11,6 +13,11 @@ const app = Fastify({
   },
 });
 
+await app.register(helmet);
+await app.register(rateLimit, {
+  max: 100,
+  timeWindow: "1 minute",
+});
 await app.register(cors, {
   origin: process.env.CORS_ORIGIN ?? "http://localhost:6000",
   credentials: true,

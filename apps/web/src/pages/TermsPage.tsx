@@ -56,6 +56,33 @@ export default function TermsPage() {
           </p>
 
           <h2 style={{ color: theme.dark, fontSize: 16, marginBottom: 8 }}>
+            Strava Data
+          </h2>
+          <p>
+            CTC Bike Health uses the Strava API but is not endorsed or certified
+            by Strava. Your use of Strava data within this app is subject to
+            the{" "}
+            <a
+              href="https://www.strava.com/legal/api"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: theme.dark, textDecoration: "underline" }}
+            >
+              Strava API Agreement
+            </a>{" "}
+            and the{" "}
+            <a
+              href="https://www.strava.com/legal/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: theme.dark, textDecoration: "underline" }}
+            >
+              Strava Privacy Policy
+            </a>
+            .
+          </p>
+
+          <h2 style={{ color: theme.dark, fontSize: 16, marginBottom: 8 }}>
             Use License
           </h2>
           <p>
