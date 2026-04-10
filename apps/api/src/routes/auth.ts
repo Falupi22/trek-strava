@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { encrypt } from "../encryption.js";
 import { signSession } from "../session.js";
-import { exchangeCode } from "../strava.js";
+import { exchangeCode, revokeToken } from "../strava.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 
 export async function authRoutes(app: FastifyInstance) {
@@ -97,6 +97,7 @@ export async function authRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req, reply) => {
       const session = (req as any).session;
+      await revokeToken(session.userId).catch(() => {}); // best-effort; delete proceeds regardless
       await prisma.user.delete({ where: { id: session.userId } });
       return { success: true };
     },

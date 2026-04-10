@@ -5,6 +5,7 @@ import { syncUser, syncActivityById } from "../sync.js";
 import {
   registerWebhook,
   getUserIdFromAthleteId,
+  validateWebhookSignature,
 } from "../strava.js";
 
 export async function stravaRoutes(app: FastifyInstance) {
@@ -56,6 +57,13 @@ export async function stravaRoutes(app: FastifyInstance) {
 
   // Webhook events (POST)
   app.post("/api/strava/webhook", async (req, reply) => {
+    const signature = (req.headers as any)["x-hub-signature"] as
+      | string
+      | undefined;
+    if (!validateWebhookSignature((req as any).rawBody ?? "", signature)) {
+      return reply.code(403).send("Forbidden");
+    }
+
     const events = Array.isArray(req.body) ? req.body : [req.body];
 
     for (const event of events) {
@@ -63,6 +71,16 @@ export async function stravaRoutes(app: FastifyInstance) {
         const userId = await getUserIdFromAthleteId(event.owner_id);
         if (userId) {
           syncActivityById(userId, event.object_id).catch(console.error);
+        }
+      }
+
+      // Strava API compliance: delete user data when they revoke access
+      if (event.object_type === "athlete" && event.aspect_type === "delete") {
+        const userId = await getUserIdFromAthleteId(event.owner_id);
+        if (userId) {
+          await prisma.user.delete({ where: { id: userId } }).catch(
+            console.error,
+          );
         }
       }
     }

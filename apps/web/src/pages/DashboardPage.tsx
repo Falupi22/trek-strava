@@ -249,7 +249,9 @@ export default function DashboardPage() {
             }}
           >
             <a
-              href="/privacy"
+              href="https://www.strava.com/legal/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
               style={{
                 color: theme.muted,
                 fontSize: 12,
@@ -259,7 +261,9 @@ export default function DashboardPage() {
               Privacy Policy
             </a>
             <a
-              href="/terms"
+              href="https://www.strava.com/legal/terms"
+              target="_blank"
+              rel="noopener noreferrer"
               style={{
                 color: theme.muted,
                 fontSize: 12,
