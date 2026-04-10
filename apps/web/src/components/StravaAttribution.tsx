@@ -16,7 +16,7 @@ export default function StravaAttribution() {
       <img
         src="/api_logo_pwrdBy_strava_horiz_orange.png"
         alt="Powered by Strava"
-        style={{ height: 20, opacity: 0.9 }}
+        style={{ height: 20 }}
       />
     </div>
   );

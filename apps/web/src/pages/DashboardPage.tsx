@@ -231,13 +231,14 @@ export default function DashboardPage() {
               rel="noopener noreferrer"
               style={{
                 display: "block",
-                color: theme.muted,
+                color: "#FC5200",
                 fontSize: 12,
                 marginBottom: 20,
                 textDecoration: "none",
+                fontWeight: 600,
               }}
             >
-              View your Strava profile →
+              View on Strava →
             </a>
           )}
           <div
