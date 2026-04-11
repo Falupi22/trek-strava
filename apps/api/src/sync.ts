@@ -39,10 +39,9 @@ async function _syncUser(userId: string): Promise<void> {
 
   const addedKm = activities.reduce((s, a) => s + a.distance / 1000, 0);
   const addedClimb = activities.reduce((s, a) => s + Math.round(a.total_elevation_gain), 0);
-  const addedDescent = activities.reduce((s, a) => {
-    const range = (a.elev_high ?? 0) - (a.elev_low ?? 0);
-    return s + Math.round(Math.max(0, a.total_elevation_gain - range));
-  }, 0);
+  // Strava doesn't provide total_elevation_loss in list responses.
+  // Best approximation: descent ≈ elevation gain (holds for loop rides).
+  const addedDescent = activities.reduce((s, a) => s + Math.round(a.total_elevation_gain), 0);
 
   await prisma.stravaSummary.upsert({
     where: { userId },

@@ -18,8 +18,8 @@ Component health is based on distance, climbing, and descending — each compone
 | Chain | Distance + Climbing |
 | Crankset | Distance |
 | Rear Derailleur | Distance + Climbing |
-| Front Brake Pads | Descending |
-| Rear Brake Pads | Descending |
+| Front Brake Pads | Descending* |
+| Rear Brake Pads | Descending* |
 | Bearings | Distance |
 
 ## Tech Stack
