@@ -180,10 +180,10 @@ export default function PrivacyPage() {
             To request data deletion or for any privacy questions, contact us
             at:{" "}
             <a
-              href="talfru22@gmail.com"
+              href="ctc.co.il"
               style={{ color: theme.dark, textDecoration: "underline" }}
             >
-              talfru22@gmail.com
+              ctc.co.il
             </a>
           </p>
         </div>

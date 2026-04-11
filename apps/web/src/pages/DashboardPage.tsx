@@ -313,7 +313,7 @@ export default function DashboardPage() {
               Terms of Service
             </a>
             <a
-              href="talfru22@gmail.com"
+              href="ctc.co.il"
               style={{
                 color: theme.muted,
                 fontSize: 12,
