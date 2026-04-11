@@ -1,161 +1,192 @@
-# BikeHealth 🚵
+# CTC Bike Health
 
-Bike Component Health Management System that analyzes your Strava cycling data to predict when bike components need maintenance or replacement.
+Bike component health management system powered by Strava. Connects to your Strava account, analyzes your cycling activity data, and predicts when bike components need maintenance or replacement.
 
-## Features
+**Status: Beta**
 
-- **Strava Integration**: Connect your Strava account to automatically sync cycling activities
-- **Component Health Analysis**: Track wear on chains, cranks, derailleurs, brakes, and bearings
-- **Wear Prediction**: Calculate component health based on distance, climbing, and descending
-- **Mobile Responsive**: Works seamlessly on phones and tablets
-- **Real-time Updates**: Background sync keeps your data current
+## How It Works
+
+1. Connect your Strava account via OAuth
+2. Set up your bike (brand, model, purchase date)
+3. Mark any components you've already replaced
+4. The app syncs your ride data and calculates wear on 6 component types
+
+Component health is based on distance, climbing, and descending — each component type weighs these factors differently:
+
+| Component | Wear Factors |
+|-----------|-------------|
+| Chain | Distance + Climbing |
+| Crankset | Distance |
+| Rear Derailleur | Distance + Climbing |
+| Front Brake Pads | Descending |
+| Rear Brake Pads | Descending |
+| Bearings | Distance |
 
 ## Tech Stack
 
-- **Frontend**: React 19 + TypeScript + Vite
-- **Backend**: Fastify + Node.js + TypeScript
-- **Database**: PostgreSQL with Prisma ORM
-- **State Management**: Zustand + TanStack Query
-- **Deployment**: Docker + Railway
-
-## Quick Start
-
-### Prerequisites
-
-- Docker & Docker Compose
-- Node.js 18+ (for local development)
-- Strava API credentials
-
-### Development Setup
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd bikehealth
-   ```
-
-2. **Environment Setup**
-   ```bash
-   # Copy environment template
-   cp .env.example .env
-
-   # Add your Strava API credentials
-   # STRAVA_CLIENT_ID=your_client_id
-   # STRAVA_CLIENT_SECRET=your_client_secret
-   # STRAVA_REDIRECT_URI=http://localhost:3000/auth/strava/callback
-   ```
-
-3. **Start Development Environment**
-   ```bash
-   # Start all services (API, DB, Web, Worker)
-   npm run dev
-
-   # Or start individual services:
-   npm run dev:api    # API server only
-   npm run dev:web    # Frontend only
-   ```
-
-4. **Access the Application**
-   - Frontend: http://localhost:5174
-   - API: http://localhost:3000
-   - Database: localhost:5432
-
-### Production Deployment
-
-The app is configured for deployment on Railway with separate services:
-
-1. **Database**: PostgreSQL service
-2. **API**: Node.js service with environment variables
-3. **Web**: Static site service with `VITE_API_BASE_URL` pointing to API service
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 19, TypeScript, Vite |
+| State | Zustand (auth), TanStack Query (server state) |
+| Backend | Fastify 4, TypeScript, Node.js 22 |
+| Database | PostgreSQL 16, Prisma ORM |
+| Infrastructure | Docker, Nginx, Railway |
 
 ## Project Structure
 
 ```
 bikehealth/
 ├── apps/
-│   ├── api/              # Fastify backend API
+│   ├── api/                    # Fastify backend
 │   │   ├── src/
-│   │   │   ├── routes/   # API endpoints
-│   │   │   ├── server.ts # Main server file
-│   │   │   └── worker.ts # Background sync worker
-│   │   └── prisma/       # Database schema & migrations
-│   └── web/              # React frontend
+│   │   │   ├── routes/         # auth, bikes, strava
+│   │   │   ├── middleware/     # JWT auth guard
+│   │   │   ├── server.ts       # App entry point
+│   │   │   ├── worker.ts       # Cron jobs (sync, cache purge)
+│   │   │   ├── strava.ts       # Strava API client
+│   │   │   ├── sync.ts         # Activity aggregation
+│   │   │   ├── encryption.ts   # AES-256-GCM token encryption
+│   │   │   └── session.ts      # JWT signing/verification
+│   │   └── prisma/
+│   │       └── schema.prisma   # Database schema
+│   └── web/                    # React SPA
 │       ├── src/
-│       │   ├── api/      # API client
-│       │   ├── pages/    # React pages
-│       │   ├── components/ # Reusable components
-│       │   └── stores/   # Zustand state management
-│       └── vite.config.ts
+│       │   ├── pages/          # Connect, Setup, Processing, Dashboard, Privacy, Terms
+│       │   ├── components/     # DonutChart, UpdateModal, StravaAttribution
+│       │   ├── api/            # API client helpers
+│       │   └── stores/         # Zustand auth store
+│       └── nginx.conf          # Production reverse proxy
 ├── packages/
-│   └── shared/           # Shared types & utilities
-├── docker-compose.yml    # Development environment
-└── package.json          # Workspace configuration
+│   └── shared/                 # Shared types + wear formula
+├── docker-compose.yml          # Development environment
+└── docker-compose.prod.yml     # Production environment
 ```
+
+## Database Schema
+
+```
+User
+├── stravaAthleteId (unique)
+├── displayName, profileImageUrl
+├── StravaToken (encrypted access + refresh tokens)
+├── StravaSummary (aggregated km, climb, descent, activity count)
+└── Bike[]
+    └── BikeComponent[] (6 per bike, unique by type)
+```
+
+All relations cascade on delete — disconnecting deletes everything.
 
 ## API Endpoints
 
 ### Authentication
-- `GET /auth/strava` - Initiate Strava OAuth
-- `GET /auth/strava/callback` - OAuth callback
-- `GET /auth/me` - Get current user
-- `POST /auth/disconnect` - Disconnect Strava
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/auth/strava` | Redirect to Strava OAuth |
+| GET | `/auth/strava/callback` | OAuth callback, creates user, signs JWT |
+| GET | `/auth/me` | Current user profile |
+| POST | `/auth/disconnect` | Revoke token + delete all user data |
 
 ### Bikes & Components
-- `GET /api/bikes` - List user's bikes
-- `POST /api/bikes` - Create/update bike setup
-- `GET /api/bikes/:id/components` - Get component health data
-- `POST /api/strava/sync` - Trigger manual data sync
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/bikes` | List bikes |
+| POST | `/api/bikes` | Create bike + seed 6 components |
+| DELETE | `/api/bikes/:id` | Delete bike |
+| GET | `/api/bikes/:id/components` | Components with calculated health scores |
+| PATCH | `/api/components/:id` | Update component purchase date/brand |
 
-## Database Schema
+### Strava
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/strava/summary` | Aggregated activity totals |
+| POST | `/api/strava/sync` | Trigger manual sync |
+| GET | `/api/strava/webhook` | Webhook verification |
+| POST | `/api/strava/webhook` | Webhook events (activity create/delete, deauth) |
 
-The app uses Prisma ORM with the following main entities:
+## Strava API Compliance
 
-- **User**: Strava-connected users
-- **Bike**: User's bike configurations
-- **Component**: Individual bike components with wear tracking
-- **StravaToken**: OAuth tokens for API access
-- **Activity**: Synced Strava activities
+- **Data display**: Only shows data to the authenticated user it belongs to
+- **Caching**: Aggregated summaries purged after 7 days (daily cron at 2 AM)
+- **Deletion**: All user data deleted within 48 hours on disconnect or deauth
+- **Deauthorization**: Webhook handles `athlete:delete` events from Strava
+- **Activity deletion**: Webhook handles `activity:delete` with full resync
+- **Security**: Tokens encrypted with AES-256-GCM, all traffic over HTTPS, 24h breach notification
+- **Attribution**: "Powered by Strava" logo, "View on Strava" links styled per brand guidelines
+- **Raw data**: Individual activities are never stored — only aggregated totals
 
-## Component Health Calculation
+## Development Setup
 
-Component health is calculated based on:
+### Prerequisites
 
-- **Distance (km)**: Primary wear factor for most components
-- **Climbing (m)**: Additional stress on drivetrain
-- **Descending (m)**: Brake wear calculation
+- Docker & Docker Compose
+- Strava API app at https://www.strava.com/settings/api
 
-Each component type has specific wear thresholds and replacement recommendations.
-
-## Development Commands
+### Steps
 
 ```bash
-# Build all workspaces
-npm run build
+# 1. Clone and configure
+cp .env.example .env
+# Edit .env with your Strava credentials and generate encryption keys:
+# node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
-# Database operations (from apps/api)
+# 2. Start all services
+docker-compose up --build
+
+# 3. Access
+# Web:  http://localhost:5174
+# API:  http://localhost:3000
+```
+
+### Services started by docker-compose
+
+| Service | Description |
+|---------|-------------|
+| `db` | PostgreSQL 16 |
+| `redis` | Redis 7 |
+| `migrate` | Runs Prisma migrations (exits after) |
+| `api` | Fastify with hot reload |
+| `worker` | Cron jobs (sync + cache purge) |
+| `web` | Vite dev server with API proxy |
+
+### Useful commands
+
+```bash
+# Database
+cd apps/api
 npm run db:migrate    # Run migrations
-npm run db:generate   # Generate Prisma client
 npm run db:studio     # Open Prisma Studio
+
+# Build all
+npm run build
 ```
 
 ## Environment Variables
 
-### API Service
-- `STRAVA_CLIENT_ID` - Strava OAuth client ID
-- `STRAVA_CLIENT_SECRET` - Strava OAuth client secret
-- `STRAVA_REDIRECT_URI` - OAuth callback URL
-- `DATABASE_URL` - PostgreSQL connection string
-- `REDIS_URL` - Redis connection for background jobs
-- `CORS_ORIGIN` - Allowed frontend origins
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `STRAVA_CLIENT_ID` | Yes | Strava OAuth client ID |
+| `STRAVA_CLIENT_SECRET` | Yes | Strava OAuth client secret |
+| `STRAVA_REDIRECT_URI` | Yes | OAuth callback URL |
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `ENCRYPTION_KEY` | Yes | 64-char hex key for AES-256-GCM |
+| `SESSION_SECRET` | Yes | 64-char hex key for JWT signing |
+| `CORS_ORIGIN` | Yes | Allowed frontend origin |
+| `API_PORT` | No | Server port (default: 3000) |
+| `NODE_ENV` | No | `development` or `production` |
+| `LOG_LEVEL` | No | Logging level (default: debug/info) |
+| `STRAVA_WEBHOOK_VERIFY_TOKEN` | No | Webhook verification token |
+| `STRAVA_WEBHOOK_CALLBACK_URL` | No | Webhook endpoint URL |
 
-### Web Service
-- `VITE_API_BASE_URL` - Production API endpoint (e.g., `https://your-api.railway.app`)
-- `VITE_API_URL` - Development proxy target (Docker only)
-- 
+## Production Deployment
+
+Configured for Railway with separate services:
+
+- **API + Worker**: Node.js service from `apps/api/Dockerfile`
+- **Web**: Nginx serving built SPA from `apps/web/Dockerfile`
+- **Database**: Railway-managed PostgreSQL
+
+The web Nginx config proxies `/api` and `/auth` to the API service via the `API_UPSTREAM` environment variable.
+
 ## License
 
 This project is private and proprietary.
-
-## Support
-
-For issues or questions, please check the code or create an issue in the repository.
