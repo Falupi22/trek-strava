@@ -40,7 +40,6 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const [updateModal, setUpdateModal] = useState<any>(null);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
-  const [bikeId, setBikeId] = useState<string | null>(null);
 
   const { data: me } = useQuery({
     queryKey: ["me"],
@@ -52,12 +51,12 @@ export default function DashboardPage() {
     queryFn: bikesApi.list,
   });
 
-  const resolvedBikeId = bikeId ?? (bikes as any)?.[0]?.id;
+  const bikeId = bikes?.[0]?.id ?? null;
 
   const { data } = useQuery({
-    queryKey: ["components", resolvedBikeId],
-    queryFn: () => bikesApi.getComponents(resolvedBikeId!),
-    enabled: !!resolvedBikeId,
+    queryKey: ["components", bikeId],
+    queryFn: () => bikesApi.getComponents(bikeId!),
+    enabled: !!bikeId,
     refetchInterval: 300000, // Poll every 5 minutes for updates
   });
 
@@ -70,7 +69,7 @@ export default function DashboardPage() {
   });
 
   const resetBikeMutation = useMutation({
-    mutationFn: () => bikesApi.deleteBike(resolvedBikeId!),
+    mutationFn: () => bikesApi.deleteBike(bikeId!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bikes"] });
       navigate("/setup");
@@ -160,7 +159,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => resetBikeMutation.mutate()}
                   style={s.resetBtn}
-                  disabled={!resolvedBikeId}
+                  disabled={!bikeId}
                 >
                   Re-setup Bike
                 </button>

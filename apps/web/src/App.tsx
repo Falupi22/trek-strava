@@ -40,6 +40,22 @@ export default function App() {
   return (
     <>
       <style>{globalStyle}</style>
+      <div
+        style={{
+          background: "#FFF8E1",
+          borderBottom: "1px solid #FFE082",
+          padding: "8px 16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          fontSize: 13,
+          color: "#8D6E00",
+        }}
+      >
+        <span style={{ fontWeight: 700 }}>BETA</span>
+        <span>This app is in beta — features may change and bugs may occur.</span>
+      </div>
       <Routes>
         <Route path="/callback" element={<CallbackPage />} />
         <Route path="/" element={<HomeRedirect />} />
