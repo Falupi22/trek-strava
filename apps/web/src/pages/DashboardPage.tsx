@@ -50,10 +50,7 @@ export default function DashboardPage() {
   const { data: bikes } = useQuery({
     queryKey: ["bikes"],
     queryFn: bikesApi.list,
-    onSuccess: (data: any[]) => {
-      if (data[0]) setBikeId(data[0].id);
-    },
-  } as any);
+  });
 
   const resolvedBikeId = bikeId ?? (bikes as any)?.[0]?.id;
 
