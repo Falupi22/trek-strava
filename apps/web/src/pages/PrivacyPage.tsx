@@ -180,7 +180,9 @@ export default function PrivacyPage() {
             To request data deletion or for any privacy questions, contact us
             at:{" "}
             <a
-              href="ctc.co.il"
+              href="https://ctc.co.il"
+              target="_blank"
+              rel="noopener noreferrer"
               style={{ color: theme.dark, textDecoration: "underline" }}
             >
               ctc.co.il

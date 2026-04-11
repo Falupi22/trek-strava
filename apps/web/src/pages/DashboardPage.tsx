@@ -313,7 +313,9 @@ export default function DashboardPage() {
               Terms of Service
             </a>
             <a
-              href="ctc.co.il"
+              href="https://ctc.co.il"
+              target="_blank"
+              rel="noopener noreferrer"
               style={{
                 color: theme.muted,
                 fontSize: 12,
