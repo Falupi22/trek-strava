@@ -180,10 +180,10 @@ export default function PrivacyPage() {
             To request data deletion or for any privacy questions, contact us
             at:{" "}
             <a
-              href="mailto:privacy@ctcbikehealth.app"
+              href="talfru22@gmail.com"
               style={{ color: theme.dark, textDecoration: "underline" }}
             >
-              privacy@ctcbikehealth.app
+              talfru22@gmail.com
             </a>
           </p>
         </div>

@@ -12,11 +12,11 @@ import { s, theme } from "../styles";
 
 function getGreeting() {
   const h = new Date().getHours();
-  if (h < 5)  return { text: "Burning the midnight oil", emoji: "🌙" };
+  if (h < 5) return { text: "Burning the midnight oil", emoji: "🌙" };
   if (h < 12) return { text: "Good morning", emoji: "☀️" };
   if (h < 17) return { text: "Good afternoon", emoji: "🌤️" };
   if (h < 21) return { text: "Good evening", emoji: "🌇" };
-  return       { text: "Good night", emoji: "🌙" };
+  return { text: "Good night", emoji: "🌙" };
 }
 
 const MOTIVATION = [
@@ -115,17 +115,47 @@ export default function DashboardPage() {
             }}
           >
             {/* Greeting row */}
-            <p style={{ margin: "0 0 14px", fontSize: 13, color: theme.muted, fontWeight: 500 }}>
-              {greeting.emoji}&nbsp; {greeting.text}{(me as any)?.displayName ? `, ${(me as any).displayName}` : ""}
+            <p
+              style={{
+                margin: "0 0 14px",
+                fontSize: 13,
+                color: theme.muted,
+                fontWeight: 500,
+              }}
+            >
+              {greeting.emoji}&nbsp; {greeting.text}
+              {(me as any)?.displayName ? `, ${(me as any).displayName}` : ""}
             </p>
 
             {/* Title + buttons row */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 16,
+              }}
+            >
               <div>
-                <h1 style={{ color: theme.dark, fontSize: 24, margin: 0, fontWeight: 700, letterSpacing: -0.5 }}>
+                <h1
+                  style={{
+                    color: theme.dark,
+                    fontSize: 24,
+                    margin: 0,
+                    fontWeight: 700,
+                    letterSpacing: -0.5,
+                  }}
+                >
                   CTC Bike Health
                 </h1>
-                <p style={{ color: theme.muted, fontSize: 12, margin: "5px 0 0", letterSpacing: 0.2 }}>
+                <p
+                  style={{
+                    color: theme.muted,
+                    fontSize: 12,
+                    margin: "5px 0 0",
+                    letterSpacing: 0.2,
+                  }}
+                >
                   Component Health Report
                 </p>
               </div>
@@ -268,19 +298,31 @@ export default function DashboardPage() {
           >
             <a
               href="/privacy"
-              style={{ color: theme.muted, fontSize: 12, textDecoration: "none" }}
+              style={{
+                color: theme.muted,
+                fontSize: 12,
+                textDecoration: "none",
+              }}
             >
               Privacy Policy
             </a>
             <a
               href="/terms"
-              style={{ color: theme.muted, fontSize: 12, textDecoration: "none" }}
+              style={{
+                color: theme.muted,
+                fontSize: 12,
+                textDecoration: "none",
+              }}
             >
               Terms of Service
             </a>
             <a
-              href="mailto:privacy@ctcbikehealth.app"
-              style={{ color: theme.muted, fontSize: 12, textDecoration: "none" }}
+              href="talfru22@gmail.com"
+              style={{
+                color: theme.muted,
+                fontSize: 12,
+                textDecoration: "none",
+              }}
             >
               Support
             </a>
@@ -317,7 +359,14 @@ export default function DashboardPage() {
             <h2 style={{ margin: "0 0 12px", color: theme.dark, fontSize: 18 }}>
               Disconnect Strava?
             </h2>
-            <p style={{ color: theme.mid, fontSize: 14, lineHeight: 1.7, margin: "0 0 24px" }}>
+            <p
+              style={{
+                color: theme.mid,
+                fontSize: 14,
+                lineHeight: 1.7,
+                margin: "0 0 24px",
+              }}
+            >
               As required by the{" "}
               <a
                 href="https://www.strava.com/legal/api"
@@ -331,7 +380,9 @@ export default function DashboardPage() {
               systems within 48 hours — including your profile, activity
               statistics, and bike configurations. This cannot be undone.
             </p>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <div
+              style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}
+            >
               <button
                 onClick={() => setShowDisconnectConfirm(false)}
                 style={{ ...s.resetBtn, opacity: 1 }}
