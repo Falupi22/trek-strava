@@ -1,21 +1,20 @@
-import { useAuthStore } from "../stores/authStore";
-
 const BASE = "/";
 
-export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = useAuthStore.getState().token;
+export async function apiFetch<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
+    credentials: "include", // send the httpOnly session cookie
     ...options,
     headers: {
       ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
   });
   if (res.status === 401) {
-    // Session token expired or invalid — clear it and bounce back to the
-    // landing page so the user can reconnect.
-    useAuthStore.getState().clearToken();
+    // Session cookie missing or expired — bounce back to the landing page so
+    // the user can reconnect.
     if (window.location.pathname !== "/") {
       window.location.assign("/");
     }

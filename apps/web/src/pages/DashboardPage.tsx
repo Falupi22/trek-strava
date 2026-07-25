@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { COMPONENT_META, getHealthColor } from "@bikehealth/shared";
 import { bikesApi } from "../api/bikes";
-import { useAuthStore } from "../stores/authStore";
 import { apiFetch } from "../api/client";
 import DonutChart from "../components/DonutChart";
 import UpdateModal from "../components/UpdateModal";
@@ -36,7 +35,6 @@ const MOTIVATION = [
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const clearToken = useAuthStore((s) => s.clearToken);
   const queryClient = useQueryClient();
   const [updateModal, setUpdateModal] = useState<any>(null);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
@@ -63,7 +61,7 @@ export default function DashboardPage() {
   const disconnectMutation = useMutation({
     mutationFn: () => apiFetch("auth/disconnect", { method: "POST" }),
     onSuccess: () => {
-      clearToken();
+      queryClient.clear(); // drop cached auth/bike data for the signed-out user
       navigate("/");
     },
   });

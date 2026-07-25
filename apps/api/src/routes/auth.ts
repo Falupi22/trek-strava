@@ -67,7 +67,19 @@ export async function authRoutes(app: FastifyInstance) {
           stravaAthleteId: athlete.id,
         });
 
-        return reply.redirect(`${webBase}/callback?token=${sessionToken}`);
+        // Deliver the session as an httpOnly cookie rather than a URL query
+        // param, so the token never lands in logs, browser history, or Referer
+        // headers. Same-origin (nginx proxies /api + /auth), so SameSite=Lax is
+        // sufficient and covers the top-level OAuth redirect.
+        reply.setCookie("session", sessionToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          maxAge: 30 * 24 * 60 * 60, // 30 days, matches the JWT TTL
+        });
+
+        return reply.redirect(`${webBase}/callback`);
       } catch (e) {
         console.error("[auth] callback error:", e);
         return reply.redirect(`${webBase}/?error=auth_failed`);
@@ -99,6 +111,7 @@ export async function authRoutes(app: FastifyInstance) {
       const session = (req as any).session;
       await revokeToken(session.userId).catch(() => {}); // best-effort; delete proceeds regardless
       await prisma.user.delete({ where: { id: session.userId } });
+      reply.clearCookie("session", { path: "/" });
       return { success: true };
     },
   );

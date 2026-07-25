@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import type { ReactElement } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useAuthStore } from "./stores/authStore";
+import { useAuth } from "./hooks/useAuth";
 import { bikesApi } from "./api/bikes";
 import ConnectPage from "./pages/ConnectPage";
 import SetupPage from "./pages/SetupPage";
@@ -22,21 +23,26 @@ const globalStyle = `
 `;
 
 function HomeRedirect() {
-  const token = useAuthStore((s) => s.token);
+  const { authed, loading } = useAuth();
   const { data: bikes, isLoading } = useQuery({
     queryKey: ["bikes"],
     queryFn: bikesApi.list,
-    enabled: !!token,
+    enabled: authed,
   });
 
-  if (!token) return <ConnectPage />;
+  if (loading) return null;
+  if (!authed) return <ConnectPage />;
   if (isLoading) return null;
   return <Navigate to={bikes && bikes.length > 0 ? "/dashboard" : "/setup"} />;
 }
 
-export default function App() {
-  const token = useAuthStore((s) => s.token);
+function RequireAuth({ children }: { children: ReactElement }) {
+  const { authed, loading } = useAuth();
+  if (loading) return null;
+  return authed ? children : <Navigate to="/" />;
+}
 
+export default function App() {
   return (
     <>
       <style>{globalStyle}</style>
@@ -61,15 +67,15 @@ export default function App() {
         <Route path="/" element={<HomeRedirect />} />
         <Route
           path="/setup"
-          element={token ? <SetupPage /> : <Navigate to="/" />}
+          element={<RequireAuth><SetupPage /></RequireAuth>}
         />
         <Route
           path="/processing"
-          element={token ? <ProcessingPage /> : <Navigate to="/" />}
+          element={<RequireAuth><ProcessingPage /></RequireAuth>}
         />
         <Route
           path="/dashboard"
-          element={token ? <DashboardPage /> : <Navigate to="/" />}
+          element={<RequireAuth><DashboardPage /></RequireAuth>}
         />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />

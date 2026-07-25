@@ -1,21 +1,16 @@
 import { useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { useAuthStore } from "../stores/authStore";
+import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function CallbackPage() {
-  const [params] = useSearchParams();
-  const setToken = useAuthStore((s) => s.setToken);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
-    const token = params.get("token");
-    const error = params.get("error");
-    if (token) {
-      setToken(token);
-      navigate("/");
-    } else {
-      navigate(`/?error=${error ?? "unknown"}`);
-    }
+    // The session cookie was set by the OAuth callback redirect. Refresh the
+    // cached auth state and send the user into the app.
+    queryClient.invalidateQueries({ queryKey: ["me"] });
+    navigate("/");
   }, []);
 
   return (
