@@ -1,6 +1,5 @@
 import { prisma } from "./db.js";
 import { encrypt, decrypt } from "./encryption.js";
-import crypto from "crypto";
 
 const STRAVA_BASE = "https://www.strava.com/api/v3";
 const TOKEN_URL = "https://www.strava.com/oauth/token";
@@ -188,13 +187,16 @@ export async function revokeToken(userId: string): Promise<void> {
 
 // Webhook functions
 export async function registerWebhook(): Promise<void> {
-  const callbackUrl = process.env.STRAVA_WEBHOOK_CALLBACK_URL;
+  const baseUrl = process.env.STRAVA_WEBHOOK_CALLBACK_URL;
+  const secret = process.env.STRAVA_WEBHOOK_SECRET;
   const verifyToken = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN;
-  if (!callbackUrl || !verifyToken) {
+  if (!baseUrl || !secret || !verifyToken) {
     throw new Error(
-      "STRAVA_WEBHOOK_CALLBACK_URL and STRAVA_WEBHOOK_VERIFY_TOKEN must be set",
+      "STRAVA_WEBHOOK_CALLBACK_URL, STRAVA_WEBHOOK_SECRET and STRAVA_WEBHOOK_VERIFY_TOKEN must be set",
     );
   }
+  // The secret is the endpoint's authenticator, so it lives in the callback path.
+  const callbackUrl = `${baseUrl.replace(/\/$/, "")}/${secret}`;
 
   const res = await fetch("https://www.strava.com/api/v3/push_subscriptions", {
     method: "POST",
@@ -216,29 +218,6 @@ export async function registerWebhook(): Promise<void> {
   console.log("Webhook registered:", data);
 }
 
-export function validateWebhookSignature(
-  payload: string,
-  signature?: string,
-): boolean {
-  try {
-    const secret = process.env.STRAVA_CLIENT_SECRET;
-    if (!secret || !signature) return false;
-
-    const expectedSignature = crypto
-      .createHmac("sha1", secret)
-      .update(payload)
-      .digest("hex");
-
-    const sigBuffer = Buffer.from(signature, "hex");
-    const expectedBuffer = Buffer.from(expectedSignature, "hex");
-
-    if (sigBuffer.length !== expectedBuffer.length) return false;
-    return crypto.timingSafeEqual(sigBuffer, expectedBuffer);
-  } catch {
-    return false;
-  }
-}
-
 export async function getUserIdFromAthleteId(
   athleteId: number,
 ): Promise<string | null> {
@@ -247,4 +226,30 @@ export async function getUserIdFromAthleteId(
     select: { id: true },
   });
   return user?.id ?? null;
+}
+
+// Confirms with Strava that a user's access is actually revoked, used before
+// acting on a deauthorization webhook so a spoofed/mistaken event can't delete
+// a live account. The refresh token is the durable credential — if the athlete
+// deauthorized, a refresh fails with invalid_grant (400/401). We only report
+// "revoked" on a definitive signal; ambiguous errors (network/5xx) return false
+// so we never delete on uncertainty.
+export async function stravaAccessRevoked(userId: string): Promise<boolean> {
+  const token = await prisma.stravaToken.findUnique({ where: { userId } });
+  if (!token) return true; // no credential on file = effectively gone
+
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: Number(process.env.STRAVA_CLIENT_ID),
+      client_secret: process.env.STRAVA_CLIENT_SECRET,
+      refresh_token: decrypt(token.refreshTokenEnc),
+      grant_type: "refresh_token",
+    }),
+  }).catch(() => null);
+
+  if (!res) return false; // network error — indeterminate, don't delete
+  if (res.ok) return false; // refresh succeeded — access is intact
+  return res.status === 400 || res.status === 401; // invalid_grant — truly revoked
 }

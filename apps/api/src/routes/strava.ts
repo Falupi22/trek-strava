@@ -1,12 +1,24 @@
 import type { FastifyInstance } from "fastify";
+import crypto from "crypto";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { syncUser, syncActivityById } from "../sync.js";
 import {
   registerWebhook,
   getUserIdFromAthleteId,
-  validateWebhookSignature,
+  stravaAccessRevoked,
 } from "../strava.js";
+
+// Strava does not sign webhook payloads, so the endpoint is authenticated by an
+// unguessable secret embedded in the callback path. Constant-time compare so a
+// wrong guess can't be narrowed down by timing.
+function validWebhookSecret(secret: string | undefined): boolean {
+  const expected = process.env.STRAVA_WEBHOOK_SECRET ?? "";
+  if (!expected || !secret) return false;
+  const a = Buffer.from(secret);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 
 export async function stravaRoutes(app: FastifyInstance) {
   app.get(
@@ -36,32 +48,39 @@ export async function stravaRoutes(app: FastifyInstance) {
     },
   );
 
-  // Webhook verification (GET)
-  app.get("/api/strava/webhook", async (req, reply) => {
-    const query = req.query as any;
-    const {
-      "hub.mode": mode,
-      "hub.challenge": challenge,
-      "hub.verify_token": verifyToken,
-    } = query;
+  // Webhook subscription verification (GET). Strava sends this to the callback
+  // URL — including the secret path segment — during subscription creation.
+  app.get<{ Params: { secret: string } }>(
+    "/api/strava/webhook/:secret",
+    async (req, reply) => {
+      if (!validWebhookSecret(req.params.secret)) {
+        return reply.code(404).send(); // don't reveal the path exists
+      }
+      const query = req.query as any;
+      const {
+        "hub.mode": mode,
+        "hub.challenge": challenge,
+        "hub.verify_token": verifyToken,
+      } = query;
 
-    if (
-      mode === "subscribe" &&
-      verifyToken === process.env.STRAVA_WEBHOOK_VERIFY_TOKEN
-    ) {
-      return { "hub.challenge": challenge };
-    }
+      if (
+        mode === "subscribe" &&
+        verifyToken === process.env.STRAVA_WEBHOOK_VERIFY_TOKEN
+      ) {
+        return { "hub.challenge": challenge };
+      }
 
-    reply.code(403).send("Forbidden");
-  });
+      reply.code(403).send("Forbidden");
+    },
+  );
 
-  // Webhook events (POST)
-  app.post("/api/strava/webhook", async (req, reply) => {
-    const signature = (req.headers as any)["x-hub-signature"] as
-      | string
-      | undefined;
-    if (!validateWebhookSignature((req as any).rawBody ?? "", signature)) {
-      return reply.code(403).send("Forbidden");
+  // Webhook events (POST). Authenticated by the secret path segment, since
+  // Strava does not sign event payloads.
+  app.post<{ Params: { secret: string } }>(
+    "/api/strava/webhook/:secret",
+    async (req, reply) => {
+    if (!validWebhookSecret(req.params.secret)) {
+      return reply.code(404).send();
     }
 
     const events = Array.isArray(req.body) ? req.body : [req.body];
@@ -87,10 +106,16 @@ export async function stravaRoutes(app: FastifyInstance) {
         }
       }
 
-      // Strava API compliance: delete user data when they revoke access
-      if (event.object_type === "athlete" && event.aspect_type === "delete") {
+      // Strava API compliance: delete user data on deauthorization. Strava
+      // signals this as an athlete "update" with updates.authorized === "false"
+      // (not a "delete" aspect). Verify the access is genuinely revoked before
+      // deleting, so a spoofed/mistaken event can't wipe a live account.
+      if (
+        event.object_type === "athlete" &&
+        String(event.updates?.authorized) === "false"
+      ) {
         const userId = await getUserIdFromAthleteId(event.owner_id);
-        if (userId) {
+        if (userId && (await stravaAccessRevoked(userId))) {
           await prisma.user.delete({ where: { id: userId } }).catch(
             console.error,
           );
