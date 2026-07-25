@@ -6,6 +6,7 @@ import rateLimit from "@fastify/rate-limit";
 import { authRoutes } from "./routes/auth.js";
 import { bikeRoutes } from "./routes/bikes.js";
 import { stravaRoutes } from "./routes/strava.js";
+import { startWorker } from "./worker.js";
 
 const app = Fastify({
   logger: {
@@ -29,6 +30,9 @@ await app.register(bikeRoutes);
 await app.register(stravaRoutes);
 
 app.get("/health", async () => ({ status: "ok" }));
+
+// Run the Strava sync cron jobs in-process so the worker always runs with the server.
+startWorker();
 
 const port = Number(process.env.PORT ?? process.env.API_PORT ?? 3000);
 await app.listen({ port, host: "::" });

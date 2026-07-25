@@ -94,6 +94,54 @@ export async function syncActivityById(userId: string, activityId: number): Prom
   logger.info({ userId, activityId, addedKm, addedClimb, addedDescent }, "[sync] activity synced");
 }
 
+// Full authoritative recompute: fetch every activity from the start and
+// OVERWRITE the stored totals (not increment). Used for delete/edit webhooks,
+// where the correct total can only be obtained by rebuilding from Strava's
+// current set of activities — since we keep no per-activity records to subtract
+// or adjust a single one.
+export async function recomputeUser(userId: string): Promise<void> {
+  const bikes = await prisma.bike.findMany({
+    where: { userId },
+    select: { purchaseYear: true },
+  });
+  let earliestYear: number | null = null;
+  for (const b of bikes) {
+    if (b.purchaseYear == null) continue;
+    earliestYear =
+      earliestYear === null ? b.purchaseYear : Math.min(earliestYear, b.purchaseYear);
+  }
+
+  // Floor at the earliest bike year, else epoch, so we always pull full history.
+  const since = earliestYear ? new Date(`${earliestYear}-01-01`) : new Date(0);
+  const activities = await fetchActivitiesSince(userId, since);
+
+  const totalKm = activities.reduce((s, a) => s + a.distance / 1000, 0);
+  const totalClimb = activities.reduce((s, a) => s + Math.round(a.total_elevation_gain), 0);
+  // Strava doesn't provide total_elevation_loss in list responses.
+  // Best approximation: descent ≈ elevation gain (holds for loop rides).
+  const totalDescent = totalClimb;
+
+  await prisma.stravaSummary.upsert({
+    where: { userId },
+    create: {
+      user: { connect: { id: userId } },
+      totalKm,
+      totalClimbM: totalClimb,
+      totalDescentM: totalDescent,
+      activityCount: activities.length,
+      lastSyncedAt: new Date(),
+    },
+    update: {
+      totalKm,
+      totalClimbM: totalClimb,
+      totalDescentM: totalDescent,
+      activityCount: activities.length,
+      lastSyncedAt: new Date(),
+    },
+  });
+  logger.info({ userId, totalKm, totalClimb, count: activities.length }, "[sync] user recomputed");
+}
+
 export async function syncAllUsers(): Promise<void> {
   const users = await prisma.user.findMany({
     where: { stravaToken: { isNot: null } },

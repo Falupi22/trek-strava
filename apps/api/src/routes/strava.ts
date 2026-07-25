@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import crypto from "crypto";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { syncUser, syncActivityById } from "../sync.js";
+import { syncUser, syncActivityById, recomputeUser } from "../sync.js";
 import {
   registerWebhook,
   getUserIdFromAthleteId,
@@ -86,23 +86,22 @@ export async function stravaRoutes(app: FastifyInstance) {
     const events = Array.isArray(req.body) ? req.body : [req.body];
 
     for (const event of events) {
-      if (event.object_type === "activity" && event.aspect_type === "create") {
+      if (event.object_type === "activity") {
         const userId = await getUserIdFromAthleteId(event.owner_id);
         if (userId) {
-          syncActivityById(userId, event.object_id).catch(console.error);
-        }
-      }
-
-      // Strava API compliance: deleted activities must be removed immediately.
-      // Since we store aggregated totals (not raw records), we delete the
-      // summary and trigger a full resync so the deleted activity is excluded.
-      if (event.object_type === "activity" && event.aspect_type === "delete") {
-        const userId = await getUserIdFromAthleteId(event.owner_id);
-        if (userId) {
-          await prisma.stravaSummary
-            .delete({ where: { userId } })
-            .catch(() => {});
-          syncUser(userId).catch(console.error);
+          if (event.aspect_type === "create") {
+            // New activity: add it incrementally.
+            syncActivityById(userId, event.object_id).catch(console.error);
+          } else if (
+            event.aspect_type === "delete" ||
+            event.aspect_type === "update"
+          ) {
+            // Deleted or edited activity: the totals can only be corrected by
+            // rebuilding from Strava's current set of activities, since we keep
+            // no per-activity records to subtract or adjust just one. A full
+            // recompute overwrites the stored totals with the authoritative sum.
+            recomputeUser(userId).catch(console.error);
+          }
         }
       }
 
