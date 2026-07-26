@@ -4,34 +4,56 @@ import { encrypt, decrypt } from "./encryption.js";
 const STRAVA_BASE = "https://www.strava.com/api/v3";
 const TOKEN_URL = "https://www.strava.com/oauth/token";
 
-// Rate limiting: 100 requests per 15 minutes
+// Rate limiting: Strava's default is 100 requests / 15 min for non-upload (read)
+// endpoints — which is all this app uses (/athlete/activities, /activities/:id).
+// The daily read cap is 1,000. Raise RATE_LIMIT only if the app is granted a
+// documented limit increase.
 const requestTimestamps: number[] = [];
 const RATE_LIMIT = 100;
 const RATE_WINDOW = 15 * 60 * 1000; // 15 minutes
+// Background jobs (sync, backfill, recompute) wait up to a full window for a
+// free slot so they self-pace across windows instead of failing en masse.
+// Interactive callers keep the default of 0 to fail fast rather than hang a
+// user's request behind the nightly batch.
+const BACKGROUND_WAIT_MS = RATE_WINDOW;
 
-async function checkRateLimit(): Promise<void> {
-  const now = Date.now();
-  // Remove old timestamps
-  while (
-    requestTimestamps.length > 0 &&
-    requestTimestamps[0] < now - RATE_WINDOW
-  ) {
-    requestTimestamps.shift();
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Reserves one slot in the rolling window. If the window is full, waits until
+// the oldest request ages out (up to maxWaitMs) and then takes the freed slot;
+// throws only if no slot frees within that budget. The check-and-push before
+// any await is synchronous, so concurrent callers can't over-reserve.
+async function checkRateLimit(maxWaitMs: number): Promise<void> {
+  const deadline = Date.now() + maxWaitMs;
+  for (;;) {
+    const now = Date.now();
+    while (
+      requestTimestamps.length > 0 &&
+      requestTimestamps[0] < now - RATE_WINDOW
+    ) {
+      requestTimestamps.shift();
+    }
+    if (requestTimestamps.length < RATE_LIMIT) {
+      requestTimestamps.push(now);
+      return;
+    }
+    // Window full: the oldest request ages out after this delay, freeing a slot.
+    const waitTime = requestTimestamps[0] + RATE_WINDOW - now;
+    if (now + waitTime > deadline) {
+      throw new Error(
+        `Rate limit exceeded. Try again in ${Math.ceil(waitTime / 1000)} seconds.`,
+      );
+    }
+    await sleep(waitTime + 50);
   }
-  if (requestTimestamps.length >= RATE_LIMIT) {
-    const waitTime = RATE_WINDOW - (now - requestTimestamps[0]);
-    throw new Error(
-      `Rate limit exceeded. Try again in ${Math.ceil(waitTime / 1000)} seconds.`,
-    );
-  }
-  requestTimestamps.push(now);
 }
 
 async function rateLimitedFetch(
   url: string,
   options: RequestInit,
+  maxWaitMs = 0,
 ): Promise<Response> {
-  await checkRateLimit();
+  await checkRateLimit(maxWaitMs);
   const res = await fetch(url, options);
   if (res.status === 429) {
     throw new Error("Strava rate limit exceeded. Please try again later.");
@@ -86,17 +108,22 @@ async function getValidAccessToken(userId: string): Promise<string> {
     return decrypt(token.accessTokenEnc);
   }
 
-  // Refresh
-  const res = await rateLimitedFetch(TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      client_id: Number(process.env.STRAVA_CLIENT_ID),
-      client_secret: process.env.STRAVA_CLIENT_SECRET,
-      refresh_token: decrypt(token.refreshTokenEnc),
-      grant_type: "refresh_token",
-    }),
-  });
+  // Refresh. Only reached from the background read paths (fetchActivity /
+  // fetchActivitiesSince), so wait for a rate-limit slot rather than fail fast.
+  const res = await rateLimitedFetch(
+    TOKEN_URL,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_id: Number(process.env.STRAVA_CLIENT_ID),
+        client_secret: process.env.STRAVA_CLIENT_SECRET,
+        refresh_token: decrypt(token.refreshTokenEnc),
+        grant_type: "refresh_token",
+      }),
+    },
+    BACKGROUND_WAIT_MS,
+  );
   if (!res.ok) throw new Error("Token refresh failed");
   const data = (await res.json()) as any;
 
@@ -122,6 +149,7 @@ export async function fetchActivity(
     {
       headers: { Authorization: `Bearer ${token}` },
     },
+    BACKGROUND_WAIT_MS,
   );
   if (!res.ok) return null;
   const a = (await res.json()) as StravaActivity;
@@ -136,40 +164,27 @@ export async function fetchActivitiesSince(
   const token = await getValidAccessToken(userId);
   const after = Math.floor(since.getTime() / 1000);
   const activities: StravaActivity[] = [];
-  let page = 1;
-  const PARALLEL = 5;
 
-  const fetchPage = (p: number) =>
-    rateLimitedFetch(
-      `${STRAVA_BASE}/athlete/activities?after=${after}&per_page=200&page=${p}`,
+  // Sequential pagination: fetch one page at a time and stop as soon as a page
+  // comes back short (< 200), i.e. the last page. This costs exactly
+  // ceil(activities / 200) requests — a single request for accounts with under
+  // 200 rides — instead of always firing 5 parallel pages regardless of size.
+  const PER_PAGE = 200;
+  let page = 1;
+  while (true) {
+    const res = await rateLimitedFetch(
+      `${STRAVA_BASE}/athlete/activities?after=${after}&per_page=${PER_PAGE}&page=${page}`,
       {
         headers: { Authorization: `Bearer ${token}` },
       },
-    ).then((r) =>
-      r.ok ? (r.json() as Promise<StravaActivity[]>) : Promise.resolve([]),
+      BACKGROUND_WAIT_MS,
     );
-
-  while (true) {
-    const batches = await Promise.all(
-      Array.from({ length: PARALLEL }, (_, i) => fetchPage(page + i)),
+    const batch = res.ok ? ((await res.json()) as StravaActivity[]) : [];
+    activities.push(
+      ...batch.filter((a) => a.type === "Ride" || a.type === "VirtualRide"),
     );
-    console.log(
-      `Fetched pages ${page} to ${page + PARALLEL - 1}, got ${batches.reduce((sum, b) => sum + b.length, 0)} activities`,
-    );
-
-    let done = false;
-    for (const batch of batches) {
-      activities.push(
-        ...batch.filter((a) => a.type === "Ride" || a.type === "VirtualRide"),
-      );
-      if (batch.length < 200) {
-        done = true;
-        break;
-      }
-    }
-
-    if (done) break;
-    page += PARALLEL;
+    if (batch.length < PER_PAGE) break; // short page = last page (or an error)
+    page += 1;
   }
 
   return activities;
