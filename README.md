@@ -100,8 +100,8 @@ All relations cascade on delete — disconnecting deletes everything.
 |--------|------|-------------|
 | GET | `/api/strava/summary` | Aggregated activity totals |
 | POST | `/api/strava/sync` | Trigger manual sync |
-| GET | `/api/strava/webhook` | Webhook verification |
-| POST | `/api/strava/webhook` | Webhook events (activity create/delete, deauth) |
+| GET | `/api/strava/webhook/:secret` | Webhook verification |
+| POST | `/api/strava/webhook/:secret` | Webhook events (activity create/update/delete, deauth) |
 
 ## Strava API Compliance
 
