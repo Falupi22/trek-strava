@@ -3,8 +3,8 @@ import type { Bike, BikeComponent } from "@prisma/client";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { COMPONENT_META, calcWear, getHealthLabel } from "@bikehealth/shared";
-import { syncUser } from "../sync.js";
-import { loadRideStats, type RideTotals } from "../bikeStats.js";
+import { syncInProgress, syncUser } from "../sync.js";
+import { loadRideStats, type BikeRides, type RideTotals } from "../bikeStats.js";
 
 interface BikeBody {
   brand?: string;
@@ -32,19 +32,22 @@ function wearInput(t: RideTotals, lastSyncedAt: string | null) {
   };
 }
 
-function componentHealth(
-  c: BikeComponent,
-  strava: ReturnType<typeof wearInput>,
-) {
+// A component wears only from rides since its own date (purchase, or
+// replacement) — never from rides before the bike was bought.
+function componentHealth(c: BikeComponent, rides: BikeRides, lastSyncedAt: string | null) {
   const meta = COMPONENT_META.find((m) => m.id === c.componentType)!;
+  const counted = rides.since(c.purchaseDate);
   return {
     id: c.id,
     type: c.componentType,
     brand: c.brand,
     purchaseDate: isoDate(c.purchaseDate),
-    ...calcWear(meta, isoDate(c.purchaseDate), strava),
+    countedKm: counted.totalKm,
+    ...calcWear(meta, isoDate(c.purchaseDate), wearInput(counted, lastSyncedAt)),
   };
 }
+
+const RIDE_FIELDS = { id: true, stravaGearId: true, purchaseYear: true, purchaseMonth: true } as const;
 
 function bikeDto(b: Bike) {
   return {
@@ -122,15 +125,26 @@ export async function bikeRoutes(app: FastifyInstance) {
       orderBy: { createdAt: "asc" },
     });
     const stats = await loadRideStats(userId, bikes);
+    // Totals still in the pre-monthly format (e.g. right after a migration):
+    // rebuild now rather than at 3 AM — once: not again while one is running.
+    if (stats.needsRebuild && !syncInProgress(userId)) {
+      syncUser(userId).catch((err) => req.log.error({ err }, "[bikes] rebuild failed"));
+    }
 
     return bikes.map((b) => {
-      const rides = stats.perBike.get(b.id)!;
-      const strava = wearInput(rides, stats.lastSyncedAt);
+      const rides = stats.bikes.get(b.id)!;
       const tally = { Good: 0, Fair: 0, Replace: 0 };
       for (const c of b.components) {
-        tally[getHealthLabel(componentHealth(c, strava).healthPercent)]++;
+        tally[getHealthLabel(componentHealth(c, rides, stats.lastSyncedAt).healthPercent)]++;
       }
-      return { ...bikeDto(b), stats: rides, health: tally };
+      return {
+        ...bikeDto(b),
+        stats: rides.totals,
+        // Rides on this bike's Strava gear before its purchase month: excluded
+        // from wear, surfaced so the rider knows they weren't counted.
+        beforePurchase: rides.beforePurchase,
+        health: tally,
+      };
     });
   });
 
@@ -300,10 +314,7 @@ export async function bikeRoutes(app: FastifyInstance) {
       const { userId } = (req as any).session;
       const { bikeId } = req.params;
 
-      const bikes = await prisma.bike.findMany({
-        where: { userId },
-        select: { id: true, stravaGearId: true },
-      });
+      const bikes = await prisma.bike.findMany({ where: { userId }, select: RIDE_FIELDS });
       if (!bikes.some((b) => b.id === bikeId)) {
         return reply.status(404).send({ error: "Bike not found" });
       }
@@ -312,11 +323,12 @@ export async function bikeRoutes(app: FastifyInstance) {
         prisma.bikeComponent.findMany({ where: { bikeId } }),
         loadRideStats(userId, bikes),
       ]);
-      const strava = wearInput(stats.perBike.get(bikeId)!, stats.lastSyncedAt);
+      const rides = stats.bikes.get(bikeId)!;
 
       return {
-        stravaSummary: strava,
-        components: components.map((c) => componentHealth(c, strava)),
+        stravaSummary: wearInput(rides.totals, stats.lastSyncedAt),
+        beforePurchase: rides.beforePurchase,
+        components: components.map((c) => componentHealth(c, rides, stats.lastSyncedAt)),
       };
     },
   );
@@ -354,11 +366,8 @@ export async function bikeRoutes(app: FastifyInstance) {
       },
     });
 
-    const bikes = await prisma.bike.findMany({
-      where: { userId },
-      select: { id: true, stravaGearId: true },
-    });
+    const bikes = await prisma.bike.findMany({ where: { userId }, select: RIDE_FIELDS });
     const stats = await loadRideStats(userId, bikes);
-    return componentHealth(updated, wearInput(stats.perBike.get(comp.bikeId)!, stats.lastSyncedAt));
+    return componentHealth(updated, stats.bikes.get(comp.bikeId)!, stats.lastSyncedAt);
   });
 }

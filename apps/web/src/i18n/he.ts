@@ -205,7 +205,16 @@ export const he: Dict = {
     // Strava's brand guidelines require this exact link text in every language.
     viewOnStrava: "View on Strava",
     yourBikes: "האופניים שלכם",
-    wearMeta: "הבלאי מחושב לפי הרכיבות של כל זוג אופניים",
+    wearMeta: "הבלאי מחושב לפי הרכיבות של כל זוג אופניים מאז הרכישה",
+    beforePurchase: (n: number, count: string, km: string, gear: string, since: string) =>
+      n === 1
+        ? `רכיבה אחת (${km} ק״מ) שתועדה על ״${gear}״ ב-Strava לפני שרכשתם את האופניים (${since}) אינה נספרת בחישוב הבלאי.`
+        : `${count} רכיבות (${km} ק״מ) שתועדו על ״${gear}״ ב-Strava לפני שרכשתם את האופניים (${since}) אינן נספרות בחישוב הבלאי.`,
+    beforePurchaseShort: (n: number, count: string, km: string) =>
+      n === 1
+        ? `רכיבה אחת (${km} ק״מ) מלפני הרכישה אינה נספרת`
+        : `${count} רכיבות (${km} ק״מ) מלפני הרכישה אינן נספרות`,
+    countedSince: (km: string, since: string) => `${km} ק״מ מאז ${since}`,
     stravaGear: (name: string) => `Strava: ${name}`,
     notLinkedCard: "לא מקושרים לאופניים ב-Strava",
     viewComponents: "צפייה ברכיבים",

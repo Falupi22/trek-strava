@@ -23,7 +23,10 @@ export interface Bike extends Required<BikeFields> {
 }
 
 export interface BikeWithStats extends Bike {
+  /** Rides counted for this bike: from its purchase month on. */
   stats: RideTotals;
+  /** Rides on its linked Strava bike before the purchase month — not counted. */
+  beforePurchase: RideTotals | null;
   health: { Good: number; Fair: number; Replace: number };
 }
 

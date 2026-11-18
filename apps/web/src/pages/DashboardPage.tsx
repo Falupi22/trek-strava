@@ -33,6 +33,20 @@ function motivationFor(t: Dict, d: RideTotals) {
   return t.dash.motivation.default;
 }
 
+// "March 2024" from a stored "YYYY-MM-DD". Dates are the 1st of a month; an
+// older client stored the last day of the previous month instead (time-zone
+// bug), so a last-of-month date is shown as the following month — matching
+// how the API counts it.
+function monthLabel(t: Dict, iso: string) {
+  let [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  if (d !== 1 && d === lastDay) {
+    m += 1;
+    if (m > 12) { m = 1; y += 1; }
+  }
+  return `${t.months[m - 1]} ${y}`;
+}
+
 function adviceFor(t: Dict, pct: number) {
   if (pct < 40) return t.dash.advice.bad;
   if (pct < 70) return t.dash.advice.fair;
@@ -198,9 +212,25 @@ export default function DashboardPage() {
   const allComponents = allTally.Good + allTally.Fair + allTally.Replace;
   // Rides on Strava bikes the user doesn't track. Only meaningful when every
   // tracked bike is linked (an unlinked bike absorbs those rides).
+  // Rides from before a bike's purchase are on a tracked Strava bike, just not
+  // counted, so they're not "untracked".
   const untrackedKm = bikes.every((b) => b.stravaGearId)
-    ? Math.max(0, overallStats.totalKm - bikes.reduce((s, b) => s + b.stats.totalKm, 0))
+    ? Math.max(
+        0,
+        overallStats.totalKm -
+          bikes.reduce((s, b) => s + b.stats.totalKm + (b.beforePurchase?.totalKm ?? 0), 0),
+      )
     : 0;
+  const beforePurchaseNote = (b: BikeWithStats) =>
+    b.beforePurchase && b.purchaseYear && b.purchaseMonth
+      ? d.beforePurchase(
+          b.beforePurchase.activityCount,
+          fmt(b.beforePurchase.activityCount),
+          fmt(Math.round(b.beforePurchase.totalKm)),
+          b.stravaGearName ?? d.yourStravaBike,
+          `${t.months[b.purchaseMonth - 1]} ${b.purchaseYear}`,
+        )
+      : null;
 
   // ── Selected bike ──
   const components: any[] = (data as any)?.components ?? [];
@@ -325,6 +355,15 @@ export default function DashboardPage() {
                         ? d.stravaGear(b.stravaGearName ?? t.setup.linked)
                         : d.notLinkedCard}
                     </p>
+                    {b.beforePurchase && (
+                      <p className="bike-card-meta">
+                        {d.beforePurchaseShort(
+                          b.beforePurchase.activityCount,
+                          fmt(b.beforePurchase.activityCount),
+                          fmt(Math.round(b.beforePurchase.totalKm)),
+                        )}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <dl className="bike-card-stats">
@@ -363,6 +402,13 @@ export default function DashboardPage() {
         </>
       ) : (
         <>
+          {beforePurchaseNote(bike!) && (
+            <div className="notice" style={{ marginBottom: 20 }}>
+              <span className="notice-icon">📅</span>
+              <span>{beforePurchaseNote(bike!)}</span>
+            </div>
+          )}
+
           {!bike!.stravaGearId && bikes.length > 1 && (
             <div className="notice" style={{ marginBottom: 20 }}>
               <span className="notice-icon">🔗</span>
@@ -417,6 +463,14 @@ export default function DashboardPage() {
                         {t.health[getHealthLabel(pct)]}
                       </span>
                       <p className="comp-advice">{adviceFor(t, pct)}</p>
+                      {typeof comp.countedKm === "number" && (
+                        <p className="comp-advice">
+                          {d.countedSince(
+                            fmt(Math.round(comp.countedKm)),
+                            monthLabel(t, comp.purchaseDate),
+                          )}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="comp-foot">

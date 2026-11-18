@@ -82,6 +82,8 @@ export interface StravaActivity {
   elev_low: number;
   elev_high: number;
   start_date: string;
+  /** Start time in the rider's local time zone (ISO, no offset applied). */
+  start_date_local?: string;
   /** Strava gear (bike) the ride was recorded on; null when none was set. */
   gear_id: string | null;
 }

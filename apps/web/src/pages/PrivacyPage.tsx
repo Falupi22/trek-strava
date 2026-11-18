@@ -52,7 +52,7 @@ function PrivacyHe() {
       <p>
         בעת סנכרון, אנו מושכים את פעילויות ה-Strava שלכם, מסכמים אותן לסיכומים
         מצטברים (מרחק, גובה, מספר פעילויות) — באופן כללי ולכל זוג אופניים
-        ב-Strava — ומוחקים מיד את הרשומות הגולמיות. פעילויות בודדות לעולם אינן
+        ב-Strava לפי חודש — ומוחקים מיד את הרשומות הגולמיות. פעילויות בודדות לעולם אינן
         נשמרות במסד הנתונים שלנו. הסיכומים המצטברים מתעדכנים מ-Strava באופן
         שוטף, ואינם נשמרים יותר מ-7 ימים ללא עדכון. עם ניתוק או בקשה למחיקת
         נתונים, כל הנתונים נמחקים לצמיתות מהמערכות שלנו תוך 48 שעות.
@@ -103,7 +103,7 @@ function PrivacyHe() {
       <h2>אחסון נתונים</h2>
       <p>
         אנו שומרים סטטיסטיקות פעילות מצטברות (סך המרחק וסך הגובה, באופן כללי
-        ולכל זוג אופניים ב-Strava), את האופניים ב-Strava שאליהם מקושר כל זוג
+        ולכל זוג אופניים ב-Strava לפי חודש), את האופניים ב-Strava שאליהם מקושר כל זוג
         אופניים שלכם, ואת נתוני האופניים והרכיבים שהזנתם ידנית. רשומות פעילות
         גולמיות מ-Strava אינן נשמרות. נתונים שמקורם ב-Strava נשמרים כמתואר
         בסעיפים "שמירת נתונים ומטמון" ו"חשבונות לא פעילים"; פרטי האופניים
@@ -182,7 +182,7 @@ function PrivacyEn() {
       <p>
         When you sync, we fetch your Strava activities, aggregate them into
         totals (distance, elevation, activity count) overall and per
-        Strava bike, and immediately
+        Strava bike per month, and immediately
         discard the raw records — individual activities are never written to
         our database. Aggregated totals are refreshed from Strava regularly
         and are never kept for more than 7 days without being refreshed. Upon
@@ -239,7 +239,7 @@ function PrivacyEn() {
       <h2>Data storage</h2>
       <p>
         We store aggregated activity statistics (total distance, total
-        elevation, overall and per Strava bike), the Strava bike each of
+        elevation, overall and per Strava bike per month), the Strava bike each of
         your bikes is linked to, and your manually entered bike/component
         data. Raw Strava activity records are not stored. Data from Strava is
         kept as described under "Data retention & caching" and "Inactive

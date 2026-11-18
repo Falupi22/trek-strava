@@ -206,7 +206,12 @@ export const en = {
     // Strava's brand guidelines require this exact link text in every language.
     viewOnStrava: "View on Strava",
     yourBikes: "Your bikes",
-    wearMeta: "Wear is based on each bike's own rides",
+    wearMeta: "Wear counts each bike's rides since purchase",
+    beforePurchase: (n: number, count: string, km: string, gear: string, since: string) =>
+      `${count} ${n === 1 ? "ride" : "rides"} (${km} km) recorded on “${gear}” in Strava before you bought this bike (${since}) ${n === 1 ? "isn't" : "aren't"} counted toward its wear.`,
+    beforePurchaseShort: (n: number, count: string, km: string) =>
+      `${count} ${n === 1 ? "ride" : "rides"} (${km} km) from before purchase not counted`,
+    countedSince: (km: string, since: string) => `${km} km since ${since}`,
     stravaGear: (name: string) => `Strava: ${name}`,
     notLinkedCard: "Not linked to a Strava bike",
     viewComponents: "View components",

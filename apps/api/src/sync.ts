@@ -34,6 +34,11 @@ function exclusive<T>(userId: string, fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
+/** True while any sync/rebuild for the user is queued or running. */
+export function syncInProgress(userId: string): boolean {
+  return tails.has(userId);
+}
+
 // A sync that is queued but hasn't started yet. Further sync requests join it
 // instead of queueing another — it hasn't read the user's bikes yet, so it
 // will still see whatever changed (e.g. several bikes created in a row).
@@ -79,37 +84,61 @@ function emptyTotals(): Totals {
   return { totalKm: 0, totalClimbM: 0, totalDescentM: 0, activityCount: 0 };
 }
 
-// Sums activities overall and per gear. Strava doesn't provide
-// total_elevation_loss in list responses; best approximation is
-// descent ≈ elevation gain (holds for loop rides).
-function aggregate(activities: StravaActivity[]) {
-  const all = emptyTotals();
-  const byGear = new Map<string, Totals>();
-  for (const a of activities) {
-    const km = a.distance / 1000;
-    const climb = Math.round(a.total_elevation_gain);
-    const key = a.gear_id || NO_GEAR;
-    const g = byGear.get(key) ?? emptyTotals();
-    for (const t of [all, g]) {
-      t.totalKm += km;
-      t.totalClimbM += climb;
-      t.totalDescentM += climb;
-      t.activityCount += 1;
-    }
-    byGear.set(key, g);
-  }
-  return { all, byGear };
+// One activity's contribution. Strava doesn't provide total_elevation_loss in
+// list responses; best approximation is descent ≈ elevation gain (holds for
+// loop rides). Used by every sync path so the totals never disagree.
+function totalsOf(a: StravaActivity): Totals {
+  const climb = Math.round(a.total_elevation_gain);
+  return { totalKm: a.distance / 1000, totalClimbM: climb, totalDescentM: climb, activityCount: 1 };
 }
 
-function incrementGear(userId: string, gearId: string, t: Totals) {
-  return prisma.gearSummary.upsert({
-    where: { userId_gearId: { userId, gearId } },
-    create: { userId, gearId, ...t },
+function addInto(into: Totals, t: Totals) {
+  into.totalKm += t.totalKm;
+  into.totalClimbM += t.totalClimbM;
+  into.totalDescentM += t.totalDescentM;
+  into.activityCount += t.activityCount;
+}
+
+// The month an activity belongs to: the 1st of its month (UTC midnight) in the
+// rider's LOCAL calendar, so a ride late on the 31st isn't moved to the next
+// month by the time zone. Matches how purchase/replacement months are stored.
+export function activityMonth(a: Pick<StravaActivity, "start_date" | "start_date_local">): Date {
+  const local = a.start_date_local || a.start_date;
+  return new Date(`${local.slice(0, 7)}-01T00:00:00Z`);
+}
+
+interface Bucket {
+  gearId: string;
+  month: Date;
+  t: Totals;
+}
+
+// Sums activities overall and per (gear, month).
+function aggregate(activities: StravaActivity[]) {
+  const all = emptyTotals();
+  const buckets = new Map<string, Bucket>();
+  for (const a of activities) {
+    const t = totalsOf(a);
+    const gearId = a.gear_id || NO_GEAR;
+    const month = activityMonth(a);
+    const key = `${gearId}|${month.toISOString()}`;
+    const b = buckets.get(key) ?? { gearId, month, t: emptyTotals() };
+    addInto(all, t);
+    addInto(b.t, t);
+    buckets.set(key, b);
+  }
+  return { all, buckets: [...buckets.values()] };
+}
+
+function incrementBucket(userId: string, b: Bucket) {
+  return prisma.gearMonthSummary.upsert({
+    where: { userId_gearId_month: { userId, gearId: b.gearId, month: b.month } },
+    create: { userId, gearId: b.gearId, month: b.month, ...b.t },
     update: {
-      totalKm: { increment: t.totalKm },
-      totalClimbM: { increment: t.totalClimbM },
-      totalDescentM: { increment: t.totalDescentM },
-      activityCount: { increment: t.activityCount },
+      totalKm: { increment: b.t.totalKm },
+      totalClimbM: { increment: b.t.totalClimbM },
+      totalDescentM: { increment: b.t.totalDescentM },
+      activityCount: { increment: b.t.activityCount },
     },
   });
 }
@@ -141,7 +170,7 @@ async function _syncUser(userId: string): Promise<void> {
   }
 
   const activities = await fetchActivitiesSince(userId, existing.lastSyncedAt);
-  const { all, byGear } = aggregate(activities);
+  const { all, buckets } = aggregate(activities);
 
   await prisma.$transaction([
     prisma.stravaSummary.update({
@@ -154,7 +183,7 @@ async function _syncUser(userId: string): Promise<void> {
         lastSyncedAt: new Date(),
       },
     }),
-    ...[...byGear].map(([gearId, t]) => incrementGear(userId, gearId, t)),
+    ...buckets.map((b) => incrementBucket(userId, b)),
   ]);
   logger.info({ userId, ...all }, "[sync] user synced");
 }
@@ -163,12 +192,11 @@ async function _syncActivityById(userId: string, activityId: number): Promise<vo
   const activity = await fetchActivity(userId, activityId);
   if (!activity) return;
 
-  const range = (activity.elev_high ?? 0) - (activity.elev_low ?? 0);
-  const t: Totals = {
-    totalKm: activity.distance / 1000,
-    totalClimbM: Math.round(activity.total_elevation_gain),
-    totalDescentM: Math.round(Math.max(0, activity.total_elevation_gain - range)),
-    activityCount: 1,
+  const t = totalsOf(activity);
+  const bucket: Bucket = {
+    gearId: activity.gear_id || NO_GEAR,
+    month: activityMonth(activity),
+    t,
   };
 
   await prisma.$transaction([
@@ -183,7 +211,7 @@ async function _syncActivityById(userId: string, activityId: number): Promise<vo
         lastSyncedAt: new Date(),
       },
     }),
-    incrementGear(userId, activity.gear_id || NO_GEAR, t),
+    incrementBucket(userId, bucket),
   ]);
   logger.info({ userId, activityId, gearId: activity.gear_id, ...t }, "[sync] activity synced");
 }
@@ -196,7 +224,7 @@ async function _syncActivityById(userId: string, activityId: number): Promise<vo
 async function _recomputeUser(userId: string, knownFloor?: Date): Promise<void> {
   const floor = knownFloor ?? (await historyFloor(userId)) ?? new Date();
   const activities = await fetchActivitiesSince(userId, floor);
-  const { all, byGear } = aggregate(activities);
+  const { all, buckets } = aggregate(activities);
   const now = new Date();
 
   await prisma.$transaction([
@@ -210,12 +238,12 @@ async function _recomputeUser(userId: string, knownFloor?: Date): Promise<void> 
       },
       update: { ...all, lastSyncedAt: now, historyFrom: floor },
     }),
-    prisma.gearSummary.deleteMany({ where: { userId } }),
-    prisma.gearSummary.createMany({
-      data: [...byGear].map(([gearId, t]) => ({ userId, gearId, ...t })),
+    prisma.gearMonthSummary.deleteMany({ where: { userId } }),
+    prisma.gearMonthSummary.createMany({
+      data: buckets.map((b) => ({ userId, gearId: b.gearId, month: b.month, ...b.t })),
     }),
   ]);
-  logger.info({ userId, ...all, gears: byGear.size }, "[sync] user recomputed");
+  logger.info({ userId, ...all, buckets: buckets.length }, "[sync] user recomputed");
 }
 
 // Nightly sync covers active users only. Inactive users' data is left to go

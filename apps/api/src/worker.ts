@@ -23,9 +23,12 @@ export async function purgeStaleData(
     select: { userId: true },
   });
   const userIds = stale.map((s) => s.userId);
-  // Per-bike totals go with the overall summary.
-  const [, { count: summaries }] = await prisma.$transaction([
-    prisma.gearSummary.deleteMany({ where: { userId: { in: userIds } } }),
+  // Per-bike monthly totals go with the overall summary. The legacy all-time
+  // table is emptied outright: nothing reads it any more, but the previous API
+  // version could have written to it during a deploy's rollover.
+  const [, , { count: summaries }] = await prisma.$transaction([
+    prisma.gearSummary.deleteMany({}),
+    prisma.gearMonthSummary.deleteMany({ where: { userId: { in: userIds } } }),
     prisma.stravaSummary.deleteMany({ where: { userId: { in: userIds } } }),
   ]);
   if (summaries > 0) {

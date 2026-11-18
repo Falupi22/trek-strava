@@ -23,6 +23,7 @@ model User {
   stravaToken   StravaToken?
   stravaSummary StravaSummary?
   gearSummaries GearSummary[]
+  gearMonths    GearMonthSummary[]
   bikes         Bike[]
 
   @@index([lastSeenAt])
@@ -59,9 +60,31 @@ model StravaSummary {
   @@map("strava_summaries")
 }
 
-// Ride totals per Strava gear (bike), so each bike's wear is computed from the
-// rides actually recorded on it. gearId is Strava's gear id, or "none" for
-// rides with no bike set. Like StravaSummary, these are aggregates only.
+// Ride totals per Strava gear (bike) per calendar month. Month granularity
+// matches the app's purchase/replacement dates (always the 1st of a month), so
+// wear can count exactly the rides since a bike was bought or a component was
+// replaced. gearId is Strava's gear id, or "none" for rides with no bike set.
+// Like StravaSummary, these are aggregates only — no individual activities.
+model GearMonthSummary {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  gearId        String   @map("gear_id")
+  /// First day of the month (UTC midnight), in the rider's local calendar.
+  month         DateTime @map("month")
+  totalKm       Float    @default(0) @map("total_km")
+  totalClimbM   Int      @default(0) @map("total_climb_m")
+  totalDescentM Int      @default(0) @map("total_descent_m")
+  activityCount Int      @default(0) @map("activity_count")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gearId, month])
+  @@map("gear_month_summaries")
+}
+
+// LEGACY (superseded by GearMonthSummary): emptied by migration 0006 and no
+// longer read or written. Kept for one release so the previous API version
+// keeps working during a deploy's rollover; drop it in a later migration.
 model GearSummary {
   id            String @id @default(uuid())
   userId        String @map("user_id")
