@@ -7,7 +7,9 @@ import {
   registerWebhook,
   getUserIdFromAthleteId,
   stravaAccessRevoked,
+  fetchAthleteBikes,
 } from "../strava.js";
+import { isActiveUser } from "../retention.js";
 
 // Strava does not sign webhook payloads, so the endpoint is authenticated by an
 // unguessable secret embedded in the callback path. Constant-time compare so a
@@ -32,9 +34,28 @@ export async function stravaRoutes(app: FastifyInstance) {
       return {
         totalKm: summary?.totalKm ?? 0,
         totalClimbM: summary?.totalClimbM ?? 0,
+        totalDescentM: summary?.totalDescentM ?? 0,
+        activityCount: summary?.activityCount ?? 0,
         lastSyncedAt: summary?.lastSyncedAt?.toISOString() ?? null,
         synced: !!summary?.lastSyncedAt,
       };
+    },
+  );
+
+  // The athlete's bikes in Strava, to link tracked bikes to. needsReconnect is
+  // true when the session predates the profile:read_all scope.
+  app.get(
+    "/api/strava/gear",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const { userId } = (req as any).session;
+      try {
+        const bikes = await fetchAthleteBikes(userId);
+        return { bikes: bikes ?? [], needsReconnect: bikes === null };
+      } catch (e) {
+        req.log.warn({ err: e }, "[strava] gear fetch failed");
+        return reply.code(503).send({ error: "Couldn't load your Strava bikes right now" });
+      }
     },
   );
 
@@ -88,7 +109,9 @@ export async function stravaRoutes(app: FastifyInstance) {
     for (const event of events) {
       if (event.object_type === "activity") {
         const userId = await getUserIdFromAthleteId(event.owner_id);
-        if (userId) {
+        // Inactive users aren't synced (retention policy), so ignore their
+        // activity events too; their data is rebuilt when they return.
+        if (userId && (await isActiveUser(userId))) {
           if (event.aspect_type === "create") {
             // New activity: add it incrementally.
             syncActivityById(userId, event.object_id).catch(console.error);

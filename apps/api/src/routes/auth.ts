@@ -7,27 +7,41 @@ import { requireAuth } from "../middleware/requireAuth.js";
 
 export async function authRoutes(app: FastifyInstance) {
   // Redirect to Strava OAuth
-  app.get("/auth/strava", async (req, reply) => {
+  // ?reconnect=1 forces the consent screen so users who connected before a
+  // scope was added (profile:read_all, for the bike list) can grant it.
+  app.get<{ Querystring: { reconnect?: string } }>("/auth/strava", async (req, reply) => {
     console.log("Initiating Strava OAuth flow");
     const params = new URLSearchParams({
       client_id: process.env.STRAVA_CLIENT_ID ?? "",
       redirect_uri: process.env.STRAVA_REDIRECT_URI ?? "",
       response_type: "code",
-      scope: "activity:read_all",
-      approval_prompt: "auto",
+      // activity:read_all → ride distance/elevation and which bike was used;
+      // profile:read_all → the athlete's bike list, to link bikes to gear.
+      scope: "activity:read_all,profile:read_all",
+      approval_prompt: req.query.reconnect ? "force" : "auto",
     });
     return reply.redirect(`https://www.strava.com/oauth/authorize?${params}`);
   });
 
   // OAuth callback
-  app.get<{ Querystring: { code?: string; error?: string } }>(
+  app.get<{ Querystring: { code?: string; error?: string; scope?: string } }>(
     "/auth/strava/callback",
     async (req, reply) => {
-      const { code, error } = req.query;
+      const { code, error, scope } = req.query;
       const webBase = process.env.CORS_ORIGIN ?? "http://localhost:6000";
 
       if (error || !code) {
         return reply.redirect(`${webBase}/?error=strava_denied`);
+      }
+
+      // Strava's consent screen lets users untick permissions. Without
+      // activity:read_all the app can't read rides, and storing that weaker
+      // token would replace a returning user's working one — so stop here,
+      // before exchanging the code. (A missing profile:read_all only disables
+      // bike linking, which the UI handles, so it's allowed.)
+      const granted = (scope ?? "").split(",").map((s) => s.trim());
+      if (!granted.includes("activity:read_all")) {
+        return reply.redirect(`${webBase}/?error=missing_scope`);
       }
 
       try {

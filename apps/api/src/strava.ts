@@ -61,6 +61,19 @@ async function rateLimitedFetch(
   return res;
 }
 
+// A non-OK Strava response. Thrown instead of treating the failure as "no
+// data": callers write totals only after a fully successful fetch, so a
+// 401/403/5xx can never zero or truncate a user's stored totals.
+export class StravaApiError extends Error {
+  constructor(
+    public readonly status: number,
+    what: string,
+  ) {
+    super(`Strava ${what} failed: HTTP ${status}`);
+    this.name = "StravaApiError";
+  }
+}
+
 export interface StravaActivity {
   id: number;
   type: string;
@@ -69,6 +82,15 @@ export interface StravaActivity {
   elev_low: number;
   elev_high: number;
   start_date: string;
+  /** Strava gear (bike) the ride was recorded on; null when none was set. */
+  gear_id: string | null;
+}
+
+export interface StravaBike {
+  id: string;
+  name: string;
+  primary: boolean;
+  retired: boolean;
 }
 
 export async function exchangeCode(code: string): Promise<{
@@ -124,7 +146,7 @@ async function getValidAccessToken(userId: string): Promise<string> {
     },
     BACKGROUND_WAIT_MS,
   );
-  if (!res.ok) throw new Error("Token refresh failed");
+  if (!res.ok) throw new StravaApiError(res.status, "token refresh");
   const data = (await res.json()) as any;
 
   await prisma.stravaToken.update({
@@ -151,7 +173,9 @@ export async function fetchActivity(
     },
     BACKGROUND_WAIT_MS,
   );
-  if (!res.ok) return null;
+  // Gone (deleted, or made private) since the webhook fired: nothing to add.
+  if (res.status === 404) return null;
+  if (!res.ok) throw new StravaApiError(res.status, `activity ${activityId} fetch`);
   const a = (await res.json()) as StravaActivity;
   if (a.type !== "Ride" && a.type !== "VirtualRide") return null;
   return a;
@@ -179,15 +203,40 @@ export async function fetchActivitiesSince(
       },
       BACKGROUND_WAIT_MS,
     );
-    const batch = res.ok ? ((await res.json()) as StravaActivity[]) : [];
+    // Any failure aborts the whole fetch (even mid-pagination), so callers
+    // never aggregate a partial history.
+    if (!res.ok) throw new StravaApiError(res.status, `activities page ${page} fetch`);
+    const batch = (await res.json()) as StravaActivity[];
     activities.push(
       ...batch.filter((a) => a.type === "Ride" || a.type === "VirtualRide"),
     );
-    if (batch.length < PER_PAGE) break; // short page = last page (or an error)
+    if (batch.length < PER_PAGE) break; // short page = last page
     page += 1;
   }
 
   return activities;
+}
+
+// The athlete's bikes as configured in Strava. The bike list is only part of
+// the detailed athlete, which needs the profile:read_all scope — users who
+// connected before that scope was requested get null and must reconnect.
+// Interactive (setup / edit screens), so it fails fast on rate limiting.
+export async function fetchAthleteBikes(
+  userId: string,
+): Promise<StravaBike[] | null> {
+  const token = await getValidAccessToken(userId);
+  const res = await rateLimitedFetch(`${STRAVA_BASE}/athlete`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new StravaApiError(res.status, "athlete fetch");
+  const data = (await res.json()) as any;
+  if (!Array.isArray(data.bikes)) return null;
+  return data.bikes.map((b: any) => ({
+    id: String(b.id),
+    name: String(b.name ?? b.nickname ?? "Unnamed bike"),
+    primary: !!b.primary,
+    retired: !!b.retired,
+  }));
 }
 
 export async function revokeToken(userId: string): Promise<void> {

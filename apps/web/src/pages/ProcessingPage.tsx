@@ -2,19 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { stravaApi } from "../api/strava";
-import StravaAttribution from "../components/StravaAttribution";
-import { s, theme } from "../styles";
+import Layout from "../components/Layout";
 
-const MESSAGES = [
-  "Analyzing ride data…",
-  "Checking component wear…",
-  "Calculating health scores…",
-  "Preparing your report…",
-];
+import { useI18n } from "../i18n";
 
 export default function ProcessingPage() {
   const navigate = useNavigate();
-  const [dots, setDots] = useState(".");
+  const { t } = useI18n();
+  const MESSAGES = t.processing.messages;
   const [msgIdx, setMsgIdx] = useState(0);
 
   const { data } = useQuery({
@@ -29,55 +24,37 @@ export default function ProcessingPage() {
     }
   }, [data?.synced]);
 
+  // Safety net: if the sync fails (e.g. Strava rejects the token), don't
+  // leave the user on a spinner forever. The dashboard keeps polling.
   useEffect(() => {
-    const d = setInterval(
-      () => setDots((p) => (p.length >= 3 ? "." : p + ".")),
-      400,
-    );
+    const t = setTimeout(() => navigate("/dashboard"), 90_000);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
     const m = setInterval(
       () => setMsgIdx((p) => (p + 1) % MESSAGES.length),
-      700,
+      900,
     );
-    return () => {
-      clearInterval(d);
-      clearInterval(m);
-    };
+    return () => clearInterval(m);
   }, []);
 
   return (
-    <>
-      <div style={{ ...s.screen, justifyContent: "center" }}>
-        <div style={{ textAlign: "center" }}>
-          <div
-            style={{
-              fontSize: 72,
-              marginBottom: 24,
-              display: "inline-block",
-              animation: "spin 2s linear infinite",
-            }}
-          >
-            ⚙️
+    <Layout narrow>
+      <div className="center-screen">
+        <div className="card fade-in" style={{ width: "100%" }}>
+          <div className="spinner" />
+          <h1 className="section-title" style={{ fontSize: 22 }}>
+            {t.processing.title}
+          </h1>
+          <p className="page-subtitle" role="status">
+            {MESSAGES[msgIdx]}
+          </p>
+          <div className="progress">
+            <div />
           </div>
-          <h2
-            style={{
-              color: theme.dark,
-              fontSize: 20,
-              maxWidth: 360,
-              margin: "0 auto 12px",
-            }}
-          >
-            Hold tight — the wrench is diagnosing your patient{dots}
-          </h2>
-          <p style={{ color: theme.muted, fontSize: 15 }}>{MESSAGES[msgIdx]}</p>
-          <div style={s.progressBar}>
-            <div style={s.progressFill} />
-          </div>
-        </div>
-
-        <div style={{ marginTop: 12 }}>
-          <StravaAttribution />
         </div>
       </div>
-    </>
+    </Layout>
   );
 }

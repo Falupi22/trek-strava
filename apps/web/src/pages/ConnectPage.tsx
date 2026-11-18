@@ -1,127 +1,109 @@
 import { useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import StravaAttribution from "../components/StravaAttribution";
-import { s, theme } from "../styles";
+import Layout from "../components/Layout";
+import { useI18n } from "../i18n";
 
 export default function ConnectPage() {
+  const { t } = useI18n();
+  const c = t.connect;
   const [agreed, setAgreed] = useState(false);
+  const [showConsentHint, setShowConsentHint] = useState(false);
   const [params] = useSearchParams();
   const error = params.get("error");
 
+  // The official Strava button must be shown unmodified, so instead of
+  // dimming it until consent is given we keep it as-is and prompt on click.
   const handleConnect = () => {
+    if (!agreed) {
+      setShowConsentHint(true);
+      return;
+    }
     window.location.href = "/auth/strava";
   };
 
   return (
-    <>
-      <div style={s.screen}>
-        <div style={s.card}>
-          <div style={{ textAlign: "center", marginBottom: 32 }}>
-            <img src="/ctc.png" alt="CTC" style={{ height: 120 }} />
-            <h1 style={s.title}>CTC Bike Health</h1>
-            <p style={s.subtitle}>Bike Component Health Management</p>
-          </div>
+    <Layout>
+      <section className="hero">
+        <div className="hero-intro fade-in">
+          <h1 className="hero-title">
+            {c.heroBefore}
+            <em>{c.heroEm}</em>
+          </h1>
+          <p className="hero-lead">{c.heroLead}</p>
+        </div>
+        {/* Separate grid item so phones can place it below the connect card. */}
+        <div className="hero-features fade-in">
+          <ul className="features">
+            {c.features.map((f) => (
+              <li key={f.title}>
+                <span className="feature-icon" aria-hidden>
+                  {f.icon}
+                </span>
+                <span>
+                  <strong>{f.title}</strong>
+                  {f.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="card connect-card fade-in">
+          <h2>{c.getStarted}</h2>
+          <p className="page-subtitle" style={{ marginTop: 0 }}>
+            {c.connectSub}
+          </p>
 
           {error && (
-            <div
-              style={{
-                background: "rgba(237,27,36,0.07)",
-                border: `1px solid ${theme.red}`,
-                borderRadius: 8,
-                padding: "10px 14px",
-                color: theme.dark,
-                fontSize: 13,
-                marginBottom: 20,
-              }}
-            >
-              Connection failed. Please try again.
+            <div className="notice notice-error" style={{ marginTop: 20 }}>
+              <span className="notice-icon">⚠️</span>
+              {error === "missing_scope" ? c.scopeError : c.connectError}
             </div>
           )}
 
-          <div style={s.privacyBox}>
-            <div
-              style={{
-                fontSize: 14,
-                marginBottom: 10,
-                color: theme.dark,
-                fontWeight: 600,
-              }}
-            >
-              🔒 Privacy Statement
-            </div>
-            <p
-              style={{
-                fontSize: 13,
-                color: theme.mid,
-                lineHeight: 1.7,
-                margin: "0 0 14px",
-              }}
-            >
-              Data received from Strava will be used for{" "}
-              <strong style={{ color: theme.dark }}>
-                personal analysis only
-              </strong>
-              . Your information will not be shared with others, used to train
-              models, or stored beyond what is needed for this service.
+          <div
+            className="privacy-box"
+            data-invalid={showConsentHint && !agreed}
+          >
+            <p>
+              {c.consentBefore}
+              <strong>{c.consentStrong}</strong>
+              {c.consentAfter}
             </p>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                cursor: "pointer",
-                color: theme.mid,
-                fontSize: 13,
-              }}
-            >
+            <label className="check">
               <input
                 type="checkbox"
                 checked={agreed}
-                onChange={(e) => setAgreed(e.target.checked)}
-                style={{ width: 15, height: 15, accentColor: theme.red }}
+                onChange={(e) => {
+                  setAgreed(e.target.checked);
+                  if (e.target.checked) setShowConsentHint(false);
+                }}
               />
-              I understand and agree to the{" "}
-              <Link
-                to="/privacy"
-                style={{ color: theme.dark, textDecoration: "underline" }}
-              >
-                privacy policy
-              </Link>{" "}
-              and{" "}
-              <Link
-                to="/terms"
-                style={{ color: theme.dark, textDecoration: "underline" }}
-              >
-                terms of service
-              </Link>
+              <span>
+                {c.agreeBefore}
+                <Link to="/privacy">{c.agreePrivacy}</Link>
+                {c.agreeAnd}
+                <Link to="/terms">{c.agreeTerms}</Link>
+              </span>
             </label>
           </div>
 
+          {/* Official Strava asset; shown unmodified per the brand guidelines. */}
           <button
+            className="strava-connect"
             onClick={handleConnect}
-            disabled={!agreed}
-            style={{
-              background: "none",
-              border: "none",
-              padding: 0,
-              cursor: agreed ? "pointer" : "not-allowed",
-              opacity: agreed ? 1 : 0.4,
-              display: "block",
-              margin: "0 auto",
-            }}
+            aria-describedby="connect-hint"
           >
             <img
               src="/btn_strava_connect_with_orange.png"
               alt="Connect with Strava"
-              style={{ height: 48, display: "block" }}
             />
           </button>
+          <p id="connect-hint" className="connect-hint" role="status">
+            {showConsentHint && !agreed ? c.consentHint : ""}
+          </p>
         </div>
-
-        <div style={{ marginTop: 12 }}>
-          <StravaAttribution />
-        </div>
-      </div>
-    </>
+      </section>
+    </Layout>
   );
 }

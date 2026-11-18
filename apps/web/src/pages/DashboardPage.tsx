@@ -1,43 +1,106 @@
-import { useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
-import { COMPONENT_META, getHealthColor } from "@bikehealth/shared";
-import { bikesApi } from "../api/bikes";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  COMPONENT_META,
+  getHealthColor,
+  getHealthLabel,
+} from "@bikehealth/shared";
+import { bikesApi, type BikeWithStats, type RideTotals } from "../api/bikes";
+import { stravaApi } from "../api/strava";
 import { apiFetch } from "../api/client";
+import { bikeLabel } from "../bikeOptions";
+import { useI18n } from "../i18n";
+import type { Dict } from "../i18n/en";
 import DonutChart from "../components/DonutChart";
 import UpdateModal from "../components/UpdateModal";
-import StravaAttribution from "../components/StravaAttribution";
-import { s, theme } from "../styles";
+import EditBikeModal from "../components/EditBikeModal";
+import Layout from "../components/Layout";
 
-function getGreeting() {
+function getGreeting(t: Dict) {
+  const g = t.dash.greetings;
   const h = new Date().getHours();
-  if (h < 5) return { text: "Burning the midnight oil", emoji: "🌙" };
-  if (h < 12) return { text: "Good morning", emoji: "☀️" };
-  if (h < 17) return { text: "Good afternoon", emoji: "🌤️" };
-  if (h < 21) return { text: "Good evening", emoji: "🌇" };
-  return { text: "Good night", emoji: "🌙" };
+  if (h < 5) return g.midnight;
+  if (h < 12) return g.morning;
+  if (h < 17) return g.afternoon;
+  if (h < 21) return g.evening;
+  return g.night;
 }
 
-const MOTIVATION = [
-  {
-    condition: (d: any) => d.totalKm > 5000,
-    text: "We thought our system crashed from all those kilometers you've been grinding. Got a trail coming up soon? 🚵",
-  },
-  {
-    condition: (d: any) => d.totalClimbM > 5000,
-    text: "How about some flat ground? Your bike does nothing but climb all day — it's not like we've got Everest around here ⛰️",
-  },
-  {
-    condition: () => true,
-    text: "Your bike is doing incredible work out there! The wrench is proud of you 🤘",
-  },
-];
+function motivationFor(t: Dict, d: RideTotals) {
+  if (d.totalKm > 5000) return t.dash.motivation.km;
+  if (d.totalClimbM > 5000) return t.dash.motivation.climb;
+  return t.dash.motivation.default;
+}
+
+function adviceFor(t: Dict, pct: number) {
+  if (pct < 40) return t.dash.advice.bad;
+  if (pct < 70) return t.dash.advice.fair;
+  return t.dash.advice.good;
+}
+
+// Keys are the English HealthLabel values; only the display text is translated.
+const TONE: Record<string, string> = {
+  Good: "var(--good)",
+  Fair: "var(--fair)",
+  Replace: "var(--bad)",
+};
+
+function Tally({ tally }: { tally: Record<string, number> }) {
+  const { t, fmt } = useI18n();
+  return (
+    <div className="stat-tally">
+      {(["Good", "Fair", "Replace"] as const).map((label) =>
+        tally[label] ? (
+          <span
+            key={label}
+            className="pill pill-status"
+            style={{ "--tone": TONE[label] } as CSSProperties}
+          >
+            {fmt(tally[label])} {t.health[label]}
+          </span>
+        ) : null,
+      )}
+    </div>
+  );
+}
+
+function RideStats({ stats }: { stats: RideTotals }) {
+  const { t, fmt } = useI18n();
+  return (
+    <>
+      <div className="stat">
+        <div className="stat-label">{t.dash.distance}</div>
+        <div className="stat-value">
+          {fmt(Math.round(stats.totalKm))}
+          <small>{t.common.km}</small>
+        </div>
+      </div>
+      <div className="stat">
+        <div className="stat-label">{t.dash.climbing}</div>
+        <div className="stat-value">
+          {fmt(stats.totalClimbM)}
+          <small>{t.common.m}</small>
+        </div>
+      </div>
+      <div className="stat">
+        <div className="stat-label">{t.dash.rides}</div>
+        <div className="stat-value">{fmt(stats.activityCount)}</div>
+      </div>
+    </>
+  );
+}
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { t, fmt } = useI18n();
+  const d = t.dash;
+  const [params, setParams] = useSearchParams();
   const [updateModal, setUpdateModal] = useState<any>(null);
+  const [editing, setEditing] = useState<BikeWithStats | null>(null);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+  const label = (b: BikeWithStats) => bikeLabel(b, t.common.yourBike);
 
   const { data: me } = useQuery({
     queryKey: ["me"],
@@ -47,15 +110,37 @@ export default function DashboardPage() {
   const { data: bikes } = useQuery({
     queryKey: ["bikes"],
     queryFn: bikesApi.list,
+    refetchInterval: 300000, // Poll every 5 minutes for updates
   });
 
-  const bikeId = bikes?.[0]?.id ?? null;
+  const { data: overall } = useQuery({
+    queryKey: ["strava-summary"],
+    queryFn: stravaApi.getSummary,
+    refetchInterval: 300000,
+  });
+
+  // Selected view: ?bike=<id> or ?bike=all; otherwise the default bike.
+  const defaultBike = bikes?.find((b) => b.isDefault) ?? bikes?.[0];
+  const selParam = params.get("bike");
+  // "All bikes" is available even with one bike: the totals also include rides
+  // with no bike set in Strava, which no single bike's page shows.
+  const showAll = selParam === "all";
+  const bike = showAll
+    ? undefined
+    : (bikes?.find((b) => b.id === selParam) ?? defaultBike);
+  const bikeId = bike?.id ?? null;
+
+  const select = (id: string) => setParams({ bike: id }, { replace: true });
+
+  useEffect(() => {
+    if (bikes && bikes.length === 0) navigate("/setup", { replace: true });
+  }, [bikes, navigate]);
 
   const { data } = useQuery({
     queryKey: ["components", bikeId],
     queryFn: () => bikesApi.getComponents(bikeId!),
     enabled: !!bikeId,
-    refetchInterval: 300000, // Poll every 5 minutes for updates
+    refetchInterval: 300000,
   });
 
   const disconnectMutation = useMutation({
@@ -66,343 +151,356 @@ export default function DashboardPage() {
     },
   });
 
-  const resetBikeMutation = useMutation({
-    mutationFn: () => bikesApi.deleteBike(bikeId!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["bikes"] });
-      navigate("/setup");
-    },
+  const defaultMutation = useMutation({
+    mutationFn: (id: string) => bikesApi.setDefault(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bikes"] }),
   });
 
-  const greeting = getGreeting();
-  const strava = (data as any)?.stravaSummary;
-  const components = (data as any)?.components ?? [];
-  const quote = MOTIVATION.find((q) => strava && q.condition(strava));
+  const refreshAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["bikes"] });
+    queryClient.invalidateQueries({ queryKey: ["components"] });
+  };
 
-  if (!data)
+  const displayName = (me as any)?.displayName as string | undefined;
+  const athleteId = (me as any)?.stravaAthleteId;
+
+  const actions = (
+    <button
+      className="btn btn-ghost btn-sm"
+      onClick={() => setShowDisconnectConfirm(true)}
+    >
+      {d.disconnect}
+    </button>
+  );
+
+  if (!bikes || bikes.length === 0 || (!showAll && !data))
     return (
-      <div
-        style={{
-          ...s.screen,
-          justifyContent: "center",
-          color: theme.muted,
-        }}
-      >
-        <div style={s.spinner}></div>
-        This might take a few moments...
-      </div>
+      <Layout actions={actions}>
+        <div className="center-screen">
+          <div>
+            <div className="spinner" />
+            <p className="page-subtitle">{t.common.loading}</p>
+          </div>
+        </div>
+      </Layout>
     );
 
-  return (
-    <>
-      <div style={s.screen}>
-        <div style={{ maxWidth: "min(700px, 95vw)", width: "100%" }}>
-          {/* Header */}
-          <div
-            style={{
-              background: theme.cardBg,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 16,
-              padding: "28px 32px",
-              marginBottom: 24,
-              boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-            }}
-          >
-            {/* Greeting row */}
-            <p
-              style={{
-                margin: "0 0 14px",
-                fontSize: 13,
-                color: theme.muted,
-                fontWeight: 500,
-              }}
-            >
-              {greeting.emoji}&nbsp; {greeting.text}
-              {(me as any)?.displayName ? `, ${(me as any).displayName}` : ""}
-            </p>
+  // ── Totals across all bikes ──
+  const overallStats: RideTotals = {
+    totalKm: overall?.totalKm ?? 0,
+    totalClimbM: overall?.totalClimbM ?? 0,
+    totalDescentM: overall?.totalDescentM ?? 0,
+    activityCount: overall?.activityCount ?? 0,
+  };
+  const allTally = { Good: 0, Fair: 0, Replace: 0 } as Record<string, number>;
+  for (const b of bikes)
+    for (const k of Object.keys(allTally)) allTally[k] += b.health[k as keyof typeof b.health];
+  const allComponents = allTally.Good + allTally.Fair + allTally.Replace;
+  // Rides on Strava bikes the user doesn't track. Only meaningful when every
+  // tracked bike is linked (an unlinked bike absorbs those rides).
+  const untrackedKm = bikes.every((b) => b.stravaGearId)
+    ? Math.max(0, overallStats.totalKm - bikes.reduce((s, b) => s + b.stats.totalKm, 0))
+    : 0;
 
-            {/* Title + buttons row */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 16,
-              }}
+  // ── Selected bike ──
+  const components: any[] = (data as any)?.components ?? [];
+  const sorted = [...components].sort((a, b) => a.healthPercent - b.healthPercent);
+  const tally = { Good: 0, Fair: 0, Replace: 0 } as Record<string, number>;
+  for (const c of components) tally[getHealthLabel(c.healthPercent)]++;
+  const needsAttention = tally.Fair + tally.Replace;
+
+  const viewStats = showAll ? overallStats : bike!.stats;
+
+  const star = (
+    <span className="bike-tab-star" title={d.defaultTitle} aria-label={d.defaultAria}>
+      ★
+    </span>
+  );
+
+  return (
+    <Layout actions={actions}>
+      <nav className="bike-tabs fade-in" aria-label={d.tabsAria}>
+        <button
+          className="bike-tab"
+          aria-current={showAll ? "page" : undefined}
+          onClick={() => select("all")}
+        >
+          {d.allBikes}
+        </button>
+        {bikes.map((b) => (
+          <button
+            key={b.id}
+            className="bike-tab"
+            aria-current={!showAll && b.id === bikeId ? "page" : undefined}
+            onClick={() => select(b.id)}
+          >
+            <bdi>{label(b)}</bdi>
+            {b.isDefault && bikes.length > 1 && star}
+          </button>
+        ))}
+        <button className="bike-tab bike-tab-add" onClick={() => navigate("/setup")}>
+          {d.addBike}
+        </button>
+      </nav>
+
+      <div className="dash-head fade-in">
+        <div>
+          <p className="eyebrow">
+            {getGreeting(t)}
+            {displayName ? <>, <bdi>{displayName}</bdi></> : ""}
+          </p>
+          <h1 className="page-title">
+            {showAll ? d.allBikes : <bdi>{label(bike!)}</bdi>}
+          </h1>
+          <p className="page-subtitle">
+            {showAll
+              ? d.allSubtitle(bikes.length)
+              : bike!.stravaGearId
+                ? d.ridesOn(bike!.stravaGearName ?? d.yourStravaBike)
+                : d.report}
+          </p>
+        </div>
+        <div className="dash-head-actions">
+          {!showAll && bikes.length > 1 &&
+            (bike!.isDefault ? (
+              <span className="pill pill-default">{d.defaultPill}</span>
+            ) : (
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => defaultMutation.mutate(bike!.id)}
+                disabled={defaultMutation.isPending}
+              >
+                {d.makeDefault}
+              </button>
+            ))}
+          {!showAll && (
+            <button className="btn btn-ghost btn-sm" onClick={() => setEditing(bike!)}>
+              {d.editBike}
+            </button>
+          )}
+          {athleteId && (
+            <a
+              className="strava-link"
+              href={`https://www.strava.com/athletes/${athleteId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              lang="en"
             >
-              <div>
-                <h1
-                  style={{
-                    color: theme.dark,
-                    fontSize: 24,
-                    margin: 0,
-                    fontWeight: 700,
-                    letterSpacing: -0.5,
-                  }}
-                >
-                  CTC Bike Health
-                </h1>
-                <p
-                  style={{
-                    color: theme.muted,
-                    fontSize: 12,
-                    margin: "5px 0 0",
-                    letterSpacing: 0.2,
-                  }}
-                >
-                  Component Health Report
-                </p>
+              {d.viewOnStrava}
+            </a>
+          )}
+        </div>
+      </div>
+
+      {showAll ? (
+        <>
+          <div className="stats">
+            <RideStats stats={overallStats} />
+            <div className="stat">
+              <div className="stat-label">{d.needsAttention}</div>
+              <div className="stat-value">
+                {fmt(allTally.Fair + allTally.Replace)}
+                <small>{d.ofN(allComponents)}</small>
               </div>
-              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                <button
-                  onClick={() => resetBikeMutation.mutate()}
-                  style={s.resetBtn}
-                  disabled={!bikeId}
-                >
-                  Re-setup Bike
-                </button>
-                <button
-                  onClick={() => setShowDisconnectConfirm(true)}
-                  style={s.resetBtn}
-                >
-                  Disconnect
-                </button>
-              </div>
+              <Tally tally={allTally} />
             </div>
           </div>
 
-          <div style={s.disclaimer}>
-            ⚠️ These results are estimates only. Component failures can occur
-            independently of wear calculations. If in doubt, visit your local
-            shop for a professional inspection.
+          <div className="section-head">
+            <h2 className="section-title">{d.yourBikes}</h2>
+            <span className="section-meta">{d.wearMeta}</span>
           </div>
 
-          {strava && (
-            <div style={s.statsRow}>
-              {[
-                {
-                  val: Math.round(strava.totalKm).toLocaleString() + " km",
-                  label: "Total Distance 🛣️",
-                },
-                {
-                  val: strava.totalClimbM.toLocaleString() + "m",
-                  label: "Total Climbing ⛰️",
-                },
-              ].map((stat) => (
-                <div key={stat.label} style={s.statCard}>
-                  <div style={s.statValue}>{stat.val}</div>
-                  <div style={s.statLabel}>{stat.label}</div>
+          <div className="bike-grid">
+            {bikes.map((b, i) => (
+              <article key={b.id} className="bike-card" style={{ animationDelay: `${i * 40}ms` }}>
+                <div className="bike-card-head">
+                  <div>
+                    <h3 className="bike-card-name">
+                      <bdi>{label(b)}</bdi>
+                      {b.isDefault && star}
+                    </h3>
+                    <p className="bike-card-meta">
+                      {b.stravaGearId
+                        ? d.stravaGear(b.stravaGearName ?? t.setup.linked)
+                        : d.notLinkedCard}
+                    </p>
+                  </div>
                 </div>
-              ))}
+                <dl className="bike-card-stats">
+                  <div>
+                    <dt>{d.distance}</dt>
+                    <dd>
+                      {fmt(Math.round(b.stats.totalKm))} {t.common.km}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{d.climbing}</dt>
+                    <dd>
+                      {fmt(b.stats.totalClimbM)} {t.common.m}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{d.rides}</dt>
+                    <dd>{fmt(b.stats.activityCount)}</dd>
+                  </div>
+                </dl>
+                <Tally tally={b.health} />
+                <div className="comp-foot">
+                  <button className="btn btn-ghost btn-sm" onClick={() => select(b.id)}>
+                    {d.viewComponents}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          {untrackedKm >= 1 && (
+            <p className="field-hint" style={{ marginTop: 16 }}>
+              {d.untracked(fmt(Math.round(untrackedKm)))}
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          {!bike!.stravaGearId && bikes.length > 1 && (
+            <div className="notice" style={{ marginBottom: 20 }}>
+              <span className="notice-icon">🔗</span>
+              <span>
+                {d.unlinkedBefore}
+                <button className="btn btn-link btn-inline" onClick={() => setEditing(bike!)}>
+                  {d.unlinkedLink}
+                </button>
+                {d.unlinkedAfter}
+              </span>
             </div>
           )}
 
-          <div style={s.compGrid}>
-            {components.map((comp: any) => {
+          <div className="stats">
+            <RideStats stats={bike!.stats} />
+            <div className="stat">
+              <div className="stat-label">{d.needsAttention}</div>
+              <div className="stat-value">
+                {fmt(needsAttention)}
+                <small>{d.ofN(components.length)}</small>
+              </div>
+              <Tally tally={tally} />
+            </div>
+          </div>
+
+          <div className="section-head">
+            <h2 className="section-title">{d.componentsTitle}</h2>
+            <span className="section-meta">{d.sortedByWear}</span>
+          </div>
+
+          <div className="comp-grid">
+            {sorted.map((comp, i) => {
               const meta = COMPONENT_META.find((m) => m.id === comp.type)!;
+              const pct = comp.healthPercent;
               return (
-                <div
+                <article
                   key={comp.id}
-                  style={{
-                    ...s.compCard,
-                    borderColor: getHealthColor(comp.healthPercent) + "44",
-                  }}
+                  className="comp"
+                  style={{ animationDelay: `${i * 40}ms` }}
                 >
-                  <DonutChart
-                    percent={comp.healthPercent}
-                    icon={meta.icon}
-                    label={meta.name}
-                  />
-                  <div style={{ marginTop: 8, textAlign: "center" }}>
-                    {comp.healthPercent >= 70 ? (
-                      <span style={{ color: "#22c55e", fontSize: 18 }}>👍</span>
-                    ) : comp.healthPercent >= 40 ? (
-                      <span style={{ fontSize: 18 }}>⚠️</span>
-                    ) : (
-                      <span style={{ color: "#ef4444", fontSize: 18 }}>👎</span>
-                    )}
+                  <div className="comp-body">
+                    <DonutChart percent={pct} />
+                    <div className="comp-info">
+                      <div className="comp-name">
+                        <span aria-hidden>{meta.icon}</span>
+                        {t.components[meta.id]}
+                      </div>
+                      <span
+                        className="pill pill-status"
+                        style={{ "--tone": getHealthColor(pct) } as CSSProperties}
+                      >
+                        {t.health[getHealthLabel(pct)]}
+                      </span>
+                      <p className="comp-advice">{adviceFor(t, pct)}</p>
+                    </div>
                   </div>
-                  {comp.healthPercent < 70 && (
-                    <p
-                      style={{
-                        color: theme.muted,
-                        fontSize: 10,
-                        textAlign: "center",
-                        margin: "6px 0 0",
-                        lineHeight: 1.4,
-                      }}
+                  <div className="comp-foot">
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => setUpdateModal({ ...comp, meta })}
                     >
-                      {comp.healthPercent < 40
-                        ? "We recommend a shop visit soon"
-                        : "Still OK — ride safe out there"}
-                    </p>
-                  )}
-                  <button
-                    onClick={() => setUpdateModal({ ...comp, meta })}
-                    style={s.updateBtn}
-                  >
-                    Update Component
-                  </button>
-                </div>
+                      {d.updateComponent}
+                    </button>
+                  </div>
+                </article>
               );
             })}
           </div>
+        </>
+      )}
 
-          {quote && (
-            <div style={s.motivationCard}>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: 14,
-                  color: theme.mid,
-                  lineHeight: 1.6,
-                }}
-              >
-                {quote.text}
-              </p>
-            </div>
-          )}
-        </div>
+      <p className="quote">{motivationFor(t, viewStats)}</p>
 
-        <div style={{ textAlign: "center", marginTop: 32, paddingBottom: 24 }}>
-          {(me as any)?.stravaAthleteId && (
-            <a
-              href={`https://www.strava.com/athletes/${(me as any).stravaAthleteId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: "block",
-                color: "#FC5200",
-                fontSize: 12,
-                marginBottom: 20,
-                textDecoration: "none",
-                fontWeight: 600,
-              }}
-            >
-              View on Strava →
-            </a>
-          )}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              gap: 16,
-              marginBottom: 12,
-            }}
-          >
-            <a
-              href="/privacy"
-              style={{
-                color: theme.muted,
-                fontSize: 12,
-                textDecoration: "none",
-              }}
-            >
-              Privacy Policy
-            </a>
-            <a
-              href="/terms"
-              style={{
-                color: theme.muted,
-                fontSize: 12,
-                textDecoration: "none",
-              }}
-            >
-              Terms of Service
-            </a>
-            <a
-              href="https://ctc.co.il"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                color: theme.muted,
-                fontSize: 12,
-                textDecoration: "none",
-              }}
-            >
-              Support
-            </a>
-          </div>
-        </div>
-
-        <div style={{ marginTop: 12 }}>
-          <StravaAttribution />
-        </div>
+      <div className="notice">
+        <span className="notice-icon">ℹ️</span>
+        <span>{d.disclaimer}</span>
       </div>
 
       {showDisconnectConfirm && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
+          className="overlay"
+          onClick={() => setShowDisconnectConfirm(false)}
         >
           <div
-            style={{
-              background: "#fff",
-              borderRadius: 12,
-              padding: 32,
-              maxWidth: 420,
-              width: "90%",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
-            }}
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="disconnect-title"
+            onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ margin: "0 0 12px", color: theme.dark, fontSize: 18 }}>
-              Disconnect Strava?
-            </h2>
-            <p
-              style={{
-                color: theme.mid,
-                fontSize: 14,
-                lineHeight: 1.7,
-                margin: "0 0 24px",
-              }}
-            >
-              As required by the{" "}
+            <h2 id="disconnect-title">{d.disconnectTitle}</h2>
+            <p>
+              {d.disconnectBefore}
               <a
                 href="https://www.strava.com/legal/api"
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ color: theme.dark, textDecoration: "underline" }}
               >
-                Strava API Agreement
+                {d.disconnectLink}
               </a>
-              , disconnecting will permanently delete all your data from our
-              systems within 48 hours — including your profile, activity
-              statistics, and bike configurations. This cannot be undone.
+              {d.disconnectAfter}
             </p>
-            <div
-              style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}
-            >
+            <div className="modal-actions">
               <button
+                className="btn btn-ghost"
                 onClick={() => setShowDisconnectConfirm(false)}
-                style={{ ...s.resetBtn, opacity: 1 }}
               >
-                Cancel
+                {t.common.cancel}
               </button>
               <button
+                className="btn btn-danger"
                 onClick={() => {
                   setShowDisconnectConfirm(false);
                   disconnectMutation.mutate();
                 }}
-                style={{
-                  ...s.resetBtn,
-                  background: theme.red,
-                  color: "#fff",
-                  border: "none",
-                  opacity: 1,
-                }}
               >
-                Yes, disconnect & delete my data
+                {d.disconnectConfirm}
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {editing && (
+        <EditBikeModal
+          bike={editing}
+          allBikes={bikes}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            refreshAll();
+          }}
+          onDeleted={() => {
+            setEditing(null);
+            setParams({}, { replace: true });
+            refreshAll();
+          }}
+        />
       )}
 
       {updateModal && (
@@ -410,11 +508,11 @@ export default function DashboardPage() {
           comp={updateModal}
           onClose={() => setUpdateModal(null)}
           onSave={() => {
-            queryClient.invalidateQueries({ queryKey: ["components"] });
+            refreshAll();
             setUpdateModal(null);
           }}
         />
       )}
-    </>
+    </Layout>
   );
 }

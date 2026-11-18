@@ -1,23 +1,8 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { bikesApi } from "../api/bikes";
-import { s } from "../styles";
-
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-const YEARS = Array.from({ length: 8 }, (_, i) => 2024 - i);
+import { YEARS, keepMonthIfValid, monthIndexesFor } from "../bikeOptions";
+import { useI18n } from "../i18n";
 
 interface Props {
   comp: any;
@@ -26,6 +11,8 @@ interface Props {
 }
 
 export default function UpdateModal({ comp, onClose, onSave }: Props) {
+  const { t } = useI18n();
+  const u = t.updateComp;
   const [step, setStep] = useState(1);
   const [sameComp, setSameComp] = useState<boolean | null>(null);
   const [month, setMonth] = useState("");
@@ -34,9 +21,11 @@ export default function UpdateModal({ comp, onClose, onSave }: Props) {
 
   const mutation = useMutation({
     mutationFn: () => {
-      const date = new Date(parseInt(year), parseInt(month), 1);
+      // YYYY-MM-01 built directly: toISOString() on a local date can land
+      // on the previous day east of UTC.
+      const purchaseDate = `${year}-${String(parseInt(month) + 1).padStart(2, "0")}-01`;
       return bikesApi.updateComponent(comp.id, {
-        purchaseDate: date.toISOString().split("T")[0],
+        purchaseDate,
         ...(newBrand ? { brand: newBrand } : {}),
       });
     },
@@ -44,59 +33,71 @@ export default function UpdateModal({ comp, onClose, onSave }: Props) {
   });
 
   return (
-    <div style={s.overlay} onClick={onClose}>
-      <div style={s.modal} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ color: "#363636", marginTop: 0, marginBottom: 20 }}>
-          Update {comp.meta?.icon} {comp.meta?.name}
+    <div className="overlay" onClick={onClose}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="update-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="eyebrow">{u.eyebrow}</p>
+        <h3 id="update-title">
+          {comp.meta?.icon} {t.components[comp.type]}
         </h3>
 
         {step === 1 && (
-          <div>
-            <p style={s.label}>Was this component replaced at a Trek store?</p>
-            <div style={{ display: "flex", gap: 12 }}>
-              <button style={s.optionBtn} onClick={() => setStep(2)}>
-                Yes
+          <div className="field fade-in">
+            <span className="field-label">
+              {u.trekStoreQ}
+            </span>
+            <div className="choices">
+              <button className="choice" onClick={() => setStep(2)}>
+                {t.common.yes}
               </button>
-              <button style={s.optionBtn} onClick={() => setStep(2)}>
-                No
+              <button className="choice" onClick={() => setStep(2)}>
+                {t.common.no}
               </button>
             </div>
           </div>
         )}
 
         {step === 2 && (
-          <div>
-            <p style={s.label}>Was it replaced with the same component?</p>
-            <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-              <button
-                style={{
-                  ...s.optionBtn,
-                  ...(sameComp === true ? s.optionBtnActive : {}),
-                }}
-                onClick={() => setSameComp(true)}
-              >
-                Yes
-              </button>
-              <button
-                style={{
-                  ...s.optionBtn,
-                  ...(sameComp === false ? s.optionBtnActive : {}),
-                }}
-                onClick={() => setSameComp(false)}
-              >
-                No — different model
-              </button>
+          <div className="fade-in">
+            <div className="field">
+              <span className="field-label">
+                {u.sameQ}
+              </span>
+              <div className="choices">
+                <button
+                  className="choice"
+                  aria-pressed={sameComp === true}
+                  onClick={() => setSameComp(true)}
+                >
+                  {t.common.yes}
+                </button>
+                <button
+                  className="choice"
+                  aria-pressed={sameComp === false}
+                  onClick={() => setSameComp(false)}
+                >
+                  {u.different}
+                </button>
+              </div>
             </div>
 
             {sameComp === false && (
-              <div style={{ marginBottom: 16 }}>
-                <label style={s.label}>Select new model</label>
+              <div className="field fade-in">
+                <label className="field-label" htmlFor="new-brand">
+                  {u.newModel}
+                </label>
                 <select
-                  style={s.select}
+                  id="new-brand"
+                  className="select"
                   value={newBrand}
                   onChange={(e) => setNewBrand(e.target.value)}
                 >
-                  <option value="">Select brand / model</option>
+                  <option value="">{u.selectBrand}</option>
                   {comp.meta?.brands?.map((b: string) => (
                     <option key={b} value={b}>
                       {b}
@@ -107,29 +108,32 @@ export default function UpdateModal({ comp, onClose, onSave }: Props) {
             )}
 
             {sameComp !== null && (
-              <div>
-                <label style={{ ...s.label, marginTop: 8 }}>
-                  Replacement date
-                </label>
-                <div style={{ display: "flex", gap: 8 }}>
+              <div className="field fade-in">
+                <span className="field-label">{u.replacementDate}</span>
+                <div className="row">
                   <select
-                    style={s.select}
+                    className="select"
+                    aria-label={t.common.month}
                     value={month}
                     onChange={(e) => setMonth(e.target.value)}
                   >
-                    <option value="">Month</option>
-                    {MONTHS.map((m, i) => (
+                    <option value="">{t.common.month}</option>
+                    {monthIndexesFor(year).map((i) => (
                       <option key={i} value={i}>
-                        {m}
+                        {t.months[i]}
                       </option>
                     ))}
                   </select>
                   <select
-                    style={s.select}
+                    className="select"
+                    aria-label={t.common.year}
                     value={year}
-                    onChange={(e) => setYear(e.target.value)}
+                    onChange={(e) => {
+                      setYear(e.target.value);
+                      setMonth((m) => keepMonthIfValid(e.target.value, m));
+                    }}
                   >
-                    <option value="">Year</option>
+                    <option value="">{t.common.year}</option>
                     {YEARS.map((y) => (
                       <option key={y} value={y}>
                         {y}
@@ -139,25 +143,23 @@ export default function UpdateModal({ comp, onClose, onSave }: Props) {
                 </div>
               </div>
             )}
-
-            {month && year && (
-              <button
-                style={{ ...s.primaryBtn, marginTop: 20 }}
-                onClick={() => mutation.mutate()}
-                disabled={mutation.isPending}
-              >
-                {mutation.isPending ? "Saving…" : "Save Update ✅"}
-              </button>
-            )}
           </div>
         )}
 
-        <button
-          style={{ ...s.resetBtn, marginTop: 20, display: "block" }}
-          onClick={onClose}
-        >
-          Cancel
-        </button>
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={onClose}>
+            {t.common.cancel}
+          </button>
+          {step === 2 && (
+            <button
+              className="btn btn-primary"
+              onClick={() => mutation.mutate()}
+              disabled={!month || !year || mutation.isPending}
+            >
+              {mutation.isPending ? t.common.saving : u.save}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

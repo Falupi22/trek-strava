@@ -1,6 +1,8 @@
 import { SignJWT, jwtVerify } from "jose";
 
-const secret = new TextEncoder().encode(process.env.SESSION_SECRET ?? "dev-secret-change-me");
+const secret = new TextEncoder().encode(
+  process.env.SESSION_SECRET ?? "dev-secret-change-me",
+);
 const ALG = "HS256";
 const TTL = "30d";
 

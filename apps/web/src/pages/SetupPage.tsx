@@ -1,301 +1,212 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
-import { COMPONENT_META } from "@bikehealth/shared";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { bikesApi } from "../api/bikes";
 import { stravaApi } from "../api/strava";
-import StravaAttribution from "../components/StravaAttribution";
-import { s } from "../styles";
-
-const TREK_MODELS = [
-  "Supercaliber",
-  "Fuel EX",
-  "Top Fuel",
-  "Slash",
-  "Procaliber",
-  "Marlin",
-  "Powerfly",
-  "Madone",
-  "Domane",
-  "Émonda",
-];
-const YEARS = Array.from({ length: 8 }, (_, i) => 2024 - i);
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
+import Layout from "../components/Layout";
+import BikeForm, {
+  draftComponents,
+  draftLabel,
+  draftToFields,
+  isDraftValid,
+  newDraft,
+  useStravaGear,
+  type BikeDraft,
+} from "../components/BikeForm";
+import { useI18n } from "../i18n";
 
 export default function SetupPage() {
   const navigate = useNavigate();
-  const [brand, setBrand] = useState<string | null>(null);
-  const [trekModel, setTrekModel] = useState("");
-  const [trekYear, setTrekYear] = useState("");
-  const [trekMonth, setTrekMonth] = useState("");
-  const [hasReplacements, setHasReplacements] = useState<boolean | null>(null);
-  const [selectedComponents, setSelectedComponents] = useState<
-    Record<string, boolean>
-  >({});
-  const [componentDates, setComponentDates] = useState<
-    Record<string, { month?: string; year?: string }>
-  >({});
+  const queryClient = useQueryClient();
+  const { t } = useI18n();
+  const s = t.setup;
+  const gear = useStravaGear();
+  const gearList = gear.data?.bikes ?? [];
+  const label = (d: BikeDraft) => draftLabel(d, gearList, t.common.yourBike);
 
-  const toggleComp = (id: string) =>
-    setSelectedComponents((p) => ({ ...p, [id]: !p[id] }));
-  const setCompDate = (id: string, field: string, val: string) =>
-    setComponentDates((p) => ({ ...p, [id]: { ...p[id], [field]: val } }));
+  // Users who already have bikes land here via "Add bike".
+  const { data: existing } = useQuery({ queryKey: ["bikes"], queryFn: bikesApi.list });
+  const adding = !!existing && existing.length > 0;
 
-  const canProceed =
-    brand === "Trek"
-      ? !!(trekModel && trekYear && trekMonth && hasReplacements !== null)
-      : !!(brand && hasReplacements !== null);
+  const [saved, setSaved] = useState<BikeDraft[]>([]);
+  const [current, setCurrent] = useState<BikeDraft>(newDraft);
+  const [defaultKey, setDefaultKey] = useState<string | null>(null);
+  // Drafts already created on the server, so a retry after a partial failure
+  // doesn't create them twice.
+  const created = useRef(new Map<string, string>());
+
+  const currentBlank = current.brandKind === null;
+  const currentValid = isDraftValid(current, true);
+  const bikes = currentValid ? [...saved, current] : saved;
+  const canFinish = bikes.length > 0 && (currentBlank || currentValid);
+  const effectiveDefault =
+    bikes.find((b) => b.key === defaultKey)?.key ?? bikes[0]?.key;
+
+  const takenGearIds = new Set(
+    [
+      ...(existing ?? []).map((b) => b.stravaGearId),
+      ...saved.map((b) => b.stravaGearId),
+    ].filter((id): id is string => !!id),
+  );
+
+  const addAnother = () => {
+    if (!currentValid) return;
+    setSaved((list) => [...list, current]);
+    setCurrent(newDraft());
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const remove = (key: string) => setSaved((list) => list.filter((b) => b.key !== key));
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const purchaseYear = trekYear ? parseInt(trekYear) : undefined;
-      const purchaseMonth = trekMonth ? parseInt(trekMonth) + 1 : undefined;
-
-      const components: Record<
-        string,
-        { purchaseDate: string; brand?: string }
-      > = {};
-      COMPONENT_META.forEach((meta) => {
-        const replaced = selectedComponents[meta.id];
-        const dates = componentDates[meta.id] || {};
-        if (replaced && dates.year && dates.month != null) {
-          const d = new Date(parseInt(dates.year), parseInt(dates.month), 1);
-          components[meta.id] = { purchaseDate: d.toISOString().split("T")[0] };
+      let firstId: string | undefined;
+      for (const d of bikes) {
+        let id = created.current.get(d.key);
+        if (!id) {
+          const bike = await bikesApi.create({
+            ...draftToFields(d, gearList),
+            components: draftComponents(d),
+            // When adding to an existing garage, keep the current default.
+            isDefault: !adding && d.key === effectiveDefault,
+          });
+          id = bike.id;
+          created.current.set(d.key, id);
         }
-      });
-
-      const bike = await bikesApi.create({
-        brand: brand!,
-        model: trekModel || undefined,
-        purchaseYear,
-        purchaseMonth,
-        components,
-      });
+        firstId ??= id;
+      }
       await stravaApi.sync();
-      return bike;
+      return firstId;
     },
-    onSuccess: () => navigate("/processing"),
+    onSuccess: (firstId) => {
+      queryClient.invalidateQueries({ queryKey: ["bikes"] });
+      if (adding) navigate(`/dashboard?bike=${firstId}`);
+      else navigate("/processing");
+    },
   });
 
-  return (
-    <>
-      <div style={s.screen}>
-        <div style={{ ...s.card, maxWidth: 540 }}>
-          <h2 style={{ ...s.title, fontSize: 22, marginBottom: 24 }}>
-            ⚙️ Set Up Your Bike
-          </h2>
+  const actions = adding ? (
+    <button className="btn btn-ghost btn-sm" onClick={() => navigate("/dashboard")}>
+      {s.backToDashboard}
+    </button>
+  ) : undefined;
 
-          <div style={s.section}>
-            <label style={s.label}>What bike do you ride?</label>
-            <div style={{ display: "flex", gap: 12 }}>
-              {[
-                { id: "Trek", label: "Trek 🚵" },
-                { id: "Other", label: "Other Brand 🔧" },
-              ].map((b) => (
+  const monthName = (d: BikeDraft) => t.months[parseInt(d.month)];
+
+  return (
+    <Layout narrow actions={actions}>
+      <div className="fade-in" style={{ marginBottom: 24 }}>
+        <p className="eyebrow">{adding ? s.eyebrowAdd : s.eyebrowSetup}</p>
+        <h1 className="page-title">{adding ? s.titleAdd : s.titleSetup}</h1>
+        <p className="page-subtitle">{s.subtitle}</p>
+      </div>
+
+      {saved.length > 0 && (
+        <ul className="draft-list fade-in" aria-label={s.savedListAria}>
+          {saved.map((b) => (
+            <li key={b.key} className="draft">
+              <div className="draft-info">
+                <strong>{label(b)}</strong>
+                <span>
+                  {s.bought(monthName(b), b.year)}
+                  {b.stravaGearId &&
+                    ` · ${t.dash.stravaGear(gearList.find((g) => g.id === b.stravaGearId)?.name ?? s.linked)}`}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="btn btn-link btn-sm"
+                onClick={() => remove(b.key)}
+                aria-label={s.removeAria(label(b))}
+              >
+                {s.remove}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="card">
+        <p className="eyebrow">{s.bikeN(saved.length + 1)}</p>
+        <BikeForm
+          draft={current}
+          onChange={setCurrent}
+          withReplacements
+          takenGearIds={takenGearIds}
+          idPrefix={current.key}
+        />
+
+        <button
+          type="button"
+          className="btn btn-ghost btn-block"
+          onClick={addAnother}
+          disabled={!currentValid}
+        >
+          {s.addAnother}
+        </button>
+      </div>
+
+      {!adding && bikes.length > 1 && (
+        <div className="card fade-in" style={{ marginTop: 16 }}>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <span className="field-label">{s.defaultQ}</span>
+            <div className="choices">
+              {bikes.map((b) => (
                 <button
-                  key={b.id}
-                  onClick={() => setBrand(b.id)}
-                  style={{
-                    ...s.optionBtn,
-                    ...(brand === b.id ? s.optionBtnActive : {}),
-                  }}
+                  key={b.key}
+                  type="button"
+                  className="choice"
+                  aria-pressed={effectiveDefault === b.key}
+                  onClick={() => setDefaultKey(b.key)}
                 >
-                  {b.label}
+                  {label(b)}
+                  <small>
+                    {monthName(b)} {b.year}
+                  </small>
                 </button>
               ))}
             </div>
+            <p className="field-hint">{s.defaultHint}</p>
           </div>
+        </div>
+      )}
 
-          {brand === "Trek" && (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 4,
-                animation: "fadeIn 0.3s",
-              }}
-            >
-              <div style={s.section}>
-                <label style={s.label}>Model</label>
-                <select
-                  style={s.select}
-                  value={trekModel}
-                  onChange={(e) => setTrekModel(e.target.value)}
-                >
-                  <option value="">Select model</option>
-                  {TREK_MODELS.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {trekModel && (
-                <div style={s.section}>
-                  <label style={s.label}>Year of Purchase</label>
-                  <select
-                    style={s.select}
-                    value={trekYear}
-                    onChange={(e) => setTrekYear(e.target.value)}
-                  >
-                    <option value="">Select year</option>
-                    {YEARS.map((y) => (
-                      <option key={y} value={y}>
-                        {y}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              {trekYear && (
-                <div style={s.section}>
-                  <label style={s.label}>Month of Purchase</label>
-                  <select
-                    style={s.select}
-                    value={trekMonth}
-                    onChange={(e) => setTrekMonth(e.target.value)}
-                  >
-                    <option value="">Select month</option>
-                    {MONTHS.map((m, i) => (
-                      <option key={i} value={i}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-          )}
+      {mutation.isError && (
+        <div className="notice notice-error" style={{ marginTop: 16 }}>
+          <span className="notice-icon">⚠️</span>
+          {t.common.genericError}
+        </div>
+      )}
 
-          {brand && (brand !== "Trek" || trekMonth) && (
-            <div style={{ ...s.section, animation: "fadeIn 0.3s" }}>
-              <label style={s.label}>
-                Have any components been replaced since purchase?
-              </label>
-              <div style={{ display: "flex", gap: 12 }}>
-                {[
-                  { id: false, label: "No" },
-                  { id: true, label: "Yes" },
-                ].map((o) => (
-                  <button
-                    key={String(o.id)}
-                    onClick={() => setHasReplacements(o.id)}
-                    style={{
-                      ...s.optionBtn,
-                      ...(hasReplacements === o.id ? s.optionBtnActive : {}),
-                    }}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {hasReplacements === true && (
-            <div style={{ ...s.section, animation: "fadeIn 0.3s" }}>
-              <label style={s.label}>Which components were replaced?</label>
-              {COMPONENT_META.map((comp) => (
-                <div key={comp.id} style={{ marginBottom: 10 }}>
-                  <label
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      cursor: "pointer",
-                      color: "#363636",
-                      fontSize: 14,
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={!!selectedComponents[comp.id]}
-                      onChange={() => toggleComp(comp.id)}
-                      style={{ width: 15, height: 15, accentColor: "#ed1b24" }}
-                    />
-                    {comp.icon} {comp.name}
-                  </label>
-                  {selectedComponents[comp.id] && (
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 8,
-                        marginTop: 8,
-                        marginLeft: 26,
-                        animation: "fadeIn 0.2s",
-                      }}
-                    >
-                      <select
-                        style={{ ...s.select, flex: 1 }}
-                        value={componentDates[comp.id]?.month ?? ""}
-                        onChange={(e) =>
-                          setCompDate(comp.id, "month", e.target.value)
-                        }
-                      >
-                        <option value="">Month</option>
-                        {MONTHS.map((m, i) => (
-                          <option key={i} value={i}>
-                            {m}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        style={{ ...s.select, flex: 1 }}
-                        value={componentDates[comp.id]?.year ?? ""}
-                        onChange={(e) =>
-                          setCompDate(comp.id, "year", e.target.value)
-                        }
-                      >
-                        <option value="">Year</option>
-                        {YEARS.map((y) => (
-                          <option key={y} value={y}>
-                            {y}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {mutation.isError && (
-            <p style={{ color: "#363636", fontSize: 13 }}>
-              Something went wrong. Please try again.
-            </p>
-          )}
-
+      {!currentBlank && !currentValid && saved.length > 0 && (
+        <p className="field-hint" style={{ marginTop: 16 }}>
+          {s.finishOrClear(saved.length + 1)}{" "}
           <button
-            onClick={() => mutation.mutate()}
-            disabled={!canProceed || mutation.isPending}
-            style={{
-              ...s.primaryBtn,
-              opacity: canProceed && !mutation.isPending ? 1 : 0.4,
-              marginTop: 24,
-            }}
+            type="button"
+            className="btn btn-link btn-sm"
+            onClick={() => setCurrent(newDraft())}
           >
-            {mutation.isPending ? "Saving…" : "Check My Bike Health 🔍"}
+            {s.clearIt}
           </button>
-        </div>
+        </p>
+      )}
 
-        <div style={{ marginTop: 12 }}>
-          <StravaAttribution />
-        </div>
-      </div>
-    </>
+      <button
+        className="btn btn-primary btn-block"
+        onClick={() => mutation.mutate()}
+        disabled={!canFinish || mutation.isPending}
+        style={{ marginTop: 16 }}
+      >
+        {mutation.isPending
+          ? t.common.saving
+          : adding
+            ? bikes.length > 1
+              ? s.addMany(bikes.length)
+              : s.addOne
+            : bikes.length > 1
+              ? s.checkMany(bikes.length)
+              : s.checkOne}
+      </button>
+    </Layout>
   );
 }

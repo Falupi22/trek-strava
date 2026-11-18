@@ -69,24 +69,10 @@ services:
       NODE_ENV: production
       CORS_ORIGIN: ${CORS_ORIGIN}
 
-  # ── Background worker (Strava sync cron) ─────────────────────────────
-  worker:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    command: npx tsx src/worker.ts
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID}
-      STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      NODE_ENV: production
+  # No separate worker service: the API runs the sync/cleanup cron jobs
+  # in-process (server.ts → startWorker). A second process would run every job
+  # twice and could double-count ride totals. Keep the API at ONE replica for
+  # the same reason.
 
   # ── Web (nginx serving built SPA) ─────────────────────────────────────
   web:
@@ -98,6 +84,8 @@ services:
       - api
     ports:
       - "80:80"
+    environment:
+      API_URL: "http://api:3000"
 
 volumes:
   postgres_data:

@@ -1,17 +1,48 @@
 import { apiFetch } from "./client";
 
-export interface CreateBikePayload {
+export interface RideTotals {
+  totalKm: number;
+  totalClimbM: number;
+  totalDescentM: number;
+  activityCount: number;
+}
+
+export interface BikeFields {
   brand: string;
-  model?: string;
-  purchaseYear?: number;
-  purchaseMonth?: number;
+  model?: string | null;
+  purchaseYear?: number | null;
+  purchaseMonth?: number | null;
+  stravaGearId?: string | null;
+  stravaGearName?: string | null;
+}
+
+export interface Bike extends Required<BikeFields> {
+  id: string;
+  model: string | null;
+  isDefault: boolean;
+}
+
+export interface BikeWithStats extends Bike {
+  stats: RideTotals;
+  health: { Good: number; Fair: number; Replace: number };
+}
+
+export interface CreateBikePayload extends BikeFields {
+  isDefault?: boolean;
   components?: Record<string, { purchaseDate: string; brand?: string }>;
 }
 
 export const bikesApi = {
-  list: () => apiFetch<any[]>("api/bikes"),
+  list: () => apiFetch<BikeWithStats[]>("api/bikes"),
   create: (data: CreateBikePayload) =>
-    apiFetch<any>("api/bikes", { method: "POST", body: JSON.stringify(data) }),
+    apiFetch<Bike>("api/bikes", { method: "POST", body: JSON.stringify(data) }),
+  update: (bikeId: string, data: Partial<BikeFields>) =>
+    apiFetch<Bike>(`api/bikes/${bikeId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  setDefault: (bikeId: string) =>
+    apiFetch<{ success: true }>(`api/bikes/${bikeId}/default`, { method: "POST" }),
   getComponents: (bikeId: string) => apiFetch<any>(`api/bikes/${bikeId}/components`),
   deleteBike: (bikeId: string) =>
     apiFetch<any>(`api/bikes/${bikeId}`, { method: "DELETE" }),

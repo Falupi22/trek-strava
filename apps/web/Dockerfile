@@ -1,11 +1,14 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-COPY package.json ./
+COPY package.json package-lock.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/web/package.json ./apps/web/
 
-RUN npm install --workspace=packages/shared --workspace=apps/web
+# npm ci installs exactly the versions in package-lock.json. Plain
+# `npm install` re-resolves to the newest versions on every uncached build,
+# and newer build tooling broke the Vite build.
+RUN npm ci --workspace=packages/shared --workspace=apps/web
 
 COPY packages/shared ./packages/shared
 COPY apps/web ./apps/web

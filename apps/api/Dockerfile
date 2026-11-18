@@ -3,12 +3,13 @@ RUN apk add --no-cache openssl
 WORKDIR /app
 
 # Copy workspace manifests
-COPY package.json ./
+COPY package.json package-lock.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/api/package.json ./apps/api/
 
-# Install all deps
-RUN npm install --workspace=packages/shared --workspace=apps/api
+# Install exactly the versions in package-lock.json (npm ci), so an uncached
+# build can't silently pick up newer, breaking dependency versions.
+RUN npm ci --workspace=packages/shared --workspace=apps/api
 
 # Copy source
 COPY packages/shared ./packages/shared

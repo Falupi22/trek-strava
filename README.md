@@ -144,8 +144,7 @@ docker-compose up --build
 | `db` | PostgreSQL 16 |
 | `redis` | Redis 7 |
 | `migrate` | Runs Prisma migrations (exits after) |
-| `api` | Fastify with hot reload |
-| `worker` | Cron jobs (sync + cache purge) |
+| `api` | Fastify with hot reload; also runs the cron jobs (sync + cache purge) in-process |
 | `web` | Vite dev server with API proxy |
 
 ### Useful commands
@@ -174,18 +173,22 @@ npm run build
 | `API_PORT` | No | Server port (default: 3000) |
 | `NODE_ENV` | No | `development` or `production` |
 | `LOG_LEVEL` | No | Logging level (default: debug/info) |
+| `STRAVA_WEBHOOK_SECRET` | For webhooks | Secret path segment authenticating Strava webhook calls |
 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | No | Webhook verification token |
 | `STRAVA_WEBHOOK_CALLBACK_URL` | No | Webhook endpoint URL |
 
 ## Production Deployment
 
-Configured for Railway with separate services:
+Deployed on Railway; pushing to `master` deploys. Services:
 
-- **API + Worker**: Node.js service from `apps/api/Dockerfile`
+- **API**: Node.js service from `apps/api/Dockerfile`. Also runs the cron jobs (sync + cache purge) in-process — don't add a separate worker service or run more than one replica, or every job runs twice.
+  - **Pre-deploy command:** `npx prisma migrate deploy` (applies pending migrations; if it fails, Railway keeps the current version running)
 - **Web**: Nginx serving built SPA from `apps/web/Dockerfile`
 - **Database**: Railway-managed PostgreSQL
 
 The web Nginx config proxies `/api` and `/auth` to the API service via the `API_UPSTREAM` environment variable.
+
+Both Dockerfiles install dependencies with `npm ci`, so builds use exactly the versions in `package-lock.json`. Commit lockfile changes along with `package.json` changes.
 
 ## License
 

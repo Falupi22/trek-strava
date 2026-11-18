@@ -9,45 +9,72 @@ datasource db {
 }
 
 model User {
-  id                String   @id @default(uuid())
-  stravaAthleteId   BigInt   @unique @map("strava_athlete_id")
-  displayName       String   @map("display_name")
-  profileImageUrl   String?  @map("profile_image_url")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(uuid())
+  stravaAthleteId BigInt   @unique @map("strava_athlete_id")
+  displayName     String   @map("display_name")
+  profileImageUrl String?  @map("profile_image_url")
+  // Last authenticated request. Drives data retention: users inactive for
+  // INACTIVE_AFTER_DAYS stop being synced and their Strava data is purged
+  // (see retention.ts).
+  lastSeenAt      DateTime @default(now()) @map("last_seen_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
-  stravaToken       StravaToken?
-  stravaSummary     StravaSummary?
-  bikes             Bike[]
+  stravaToken   StravaToken?
+  stravaSummary StravaSummary?
+  gearSummaries GearSummary[]
+  bikes         Bike[]
 
+  @@index([lastSeenAt])
   @@map("users")
 }
 
 model StravaToken {
-  id               String   @id @default(uuid())
-  userId           String   @unique @map("user_id")
-  accessTokenEnc   String   @map("access_token_enc")
-  refreshTokenEnc  String   @map("refresh_token_enc")
-  expiresAt        DateTime @map("expires_at")
-  connectedAt      DateTime @default(now()) @map("connected_at")
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  accessTokenEnc  String   @map("access_token_enc")
+  refreshTokenEnc String   @map("refresh_token_enc")
+  expiresAt       DateTime @map("expires_at")
+  connectedAt     DateTime @default(now()) @map("connected_at")
 
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("strava_tokens")
 }
 
 model StravaSummary {
-  id             String    @id @default(uuid())
-  userId         String    @unique @map("user_id")
-  totalKm        Float     @default(0) @map("total_km")
-  totalClimbM    Int       @default(0) @map("total_climb_m")
-  totalDescentM  Int       @default(0) @map("total_descent_m")
-  activityCount  Int       @default(0) @map("activity_count")
-  lastSyncedAt   DateTime? @map("last_synced_at")
+  id            String    @id @default(uuid())
+  userId        String    @unique @map("user_id")
+  totalKm       Float     @default(0) @map("total_km")
+  totalClimbM   Int       @default(0) @map("total_climb_m")
+  totalDescentM Int       @default(0) @map("total_descent_m")
+  activityCount Int       @default(0) @map("activity_count")
+  lastSyncedAt  DateTime? @map("last_synced_at")
+  // Earliest ride date the totals cover. Null (or later than the earliest
+  // bike's purchase date) means the next sync must rebuild from scratch.
+  historyFrom   DateTime? @map("history_from")
 
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("strava_summaries")
+}
+
+// Ride totals per Strava gear (bike), so each bike's wear is computed from the
+// rides actually recorded on it. gearId is Strava's gear id, or "none" for
+// rides with no bike set. Like StravaSummary, these are aggregates only.
+model GearSummary {
+  id            String @id @default(uuid())
+  userId        String @map("user_id")
+  gearId        String @map("gear_id")
+  totalKm       Float  @default(0) @map("total_km")
+  totalClimbM   Int    @default(0) @map("total_climb_m")
+  totalDescentM Int    @default(0) @map("total_descent_m")
+  activityCount Int    @default(0) @map("activity_count")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gearId])
+  @@map("gear_summaries")
 }
 
 model Bike {
@@ -57,12 +84,19 @@ model Bike {
   model          String?
   purchaseYear   Int?     @map("purchase_year")
   purchaseMonth  Int?     @map("purchase_month")
+  // The Strava gear this bike's rides are recorded under (e.g. "b1234567").
+  stravaGearId   String?  @map("strava_gear_id")
+  // Strava's name for that gear, cached for display (no API call per view).
+  stravaGearName String?  @map("strava_gear_name")
+  // The bike the dashboard opens on. Exactly one per user once they have bikes.
+  isDefault      Boolean  @default(false) @map("is_default")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  components     BikeComponent[]
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  components BikeComponent[]
 
+  @@unique([userId, stravaGearId])
   @@map("bikes")
 }
 
@@ -75,7 +109,7 @@ model BikeComponent {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  bike          Bike     @relation(fields: [bikeId], references: [id], onDelete: Cascade)
+  bike Bike @relation(fields: [bikeId], references: [id], onDelete: Cascade)
 
   @@unique([bikeId, componentType])
   @@map("bike_components")

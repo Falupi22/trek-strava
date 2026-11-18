@@ -1,24 +1,16 @@
-import { theme } from "../styles";
+import { useI18n } from "../i18n";
 
+// Strava brand guidelines: the official "Powered by Strava" logo, unmodified,
+// shown separately from (and less prominent than) the app's own branding.
 export default function StravaAttribution() {
+  const { t } = useI18n();
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 6,
-        margin: "12px 0 0",
-      }}
-    >
+    <div className="attribution">
       <img
         src="/api_logo_pwrdBy_strava_horiz_orange.png"
         alt="Powered by Strava"
-        style={{ height: 20 }}
       />
-      <span style={{ color: theme.muted, fontSize: 11 }}>
-        Activity data may include data sourced from Garmin
-      </span>
+      <span>{t.common.garminNote}</span>
     </div>
   );
 }

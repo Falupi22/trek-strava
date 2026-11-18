@@ -68,23 +68,9 @@ services:
       DATABASE_URL: postgresql://bikehealth:bikehealth@db:5432/bikehealth
     restart: "no"
 
-  # ── Background worker (Strava sync cron) ─────────────────────────────
-  worker:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile.dev
-    command: sh -c "cd /app/apps/api && npx tsx watch src/worker.ts"
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql://bikehealth:bikehealth@db:5432/bikehealth
-    volumes:
-      - ./apps/api/src:/app/apps/api/src
+  # No separate worker service: the API runs the sync/cleanup cron jobs
+  # in-process (server.ts → startWorker). A second process would run every job
+  # twice and could double-count ride totals.
 
   # ── Web (Vite dev server) ─────────────────────────────────────────────
   web:
