@@ -39,8 +39,13 @@ export default function SetupPage() {
   const currentValid = isDraftValid(current, true);
   const bikes = currentValid ? [...saved, current] : saved;
   const canFinish = bikes.length > 0 && (currentBlank || currentValid);
+  // The rider's pick; otherwise the bike linked to their Strava primary gear;
+  // otherwise the first bike entered.
+  const primaryGearId = gearList.find((g) => g.primary)?.id;
   const effectiveDefault =
-    bikes.find((b) => b.key === defaultKey)?.key ?? bikes[0]?.key;
+    bikes.find((b) => b.key === defaultKey)?.key ??
+    (primaryGearId ? bikes.find((b) => b.stravaGearId === primaryGearId)?.key : undefined) ??
+    bikes[0]?.key;
 
   const takenGearIds = new Set(
     [
