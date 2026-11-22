@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { Bike, BikeComponent } from "@prisma/client";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { userRateLimit } from "../middleware/userRateLimit.js";
 import { COMPONENT_META, calcWear, getHealthLabel } from "@bikehealth/shared";
 import { syncInProgress, syncUser } from "../sync.js";
 import { loadRideStats, type BikeRides, type RideTotals } from "../bikeStats.js";
@@ -153,7 +154,7 @@ export async function bikeRoutes(app: FastifyInstance) {
     Body: BikeBody & {
       components?: Record<string, { purchaseDate: string; brand?: string }>;
     };
-  }>("/api/bikes", { preHandler: requireAuth }, async (req, reply) => {
+  }>("/api/bikes", { preHandler: [requireAuth, userRateLimit("bike-create", 10, 60 * 60 * 1000)] }, async (req, reply) => {
     const { userId } = (req as any).session;
     const body = req.body ?? {};
     const error = validate(body, true);
@@ -211,7 +212,7 @@ export async function bikeRoutes(app: FastifyInstance) {
   // Edit bike details / Strava link
   app.patch<{ Params: { bikeId: string }; Body: BikeBody }>(
     "/api/bikes/:bikeId",
-    { preHandler: requireAuth },
+    { preHandler: [requireAuth, userRateLimit("bike-edit", 30, 60 * 60 * 1000)] },
     async (req, reply) => {
       const { userId } = (req as any).session;
       const { bikeId } = req.params;

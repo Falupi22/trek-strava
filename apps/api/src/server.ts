@@ -8,7 +8,21 @@ import { bikeRoutes } from "./routes/bikes.js";
 import { stravaRoutes } from "./routes/strava.js";
 import { startWorker } from "./worker.js";
 
+// The API sits behind nginx (and possibly a platform load balancer in front of
+// that), so the TCP peer is always a proxy. trustProxy makes req.ip the real
+// client from X-Forwarded-For — without it every user shares one rate-limit
+// bucket. TRUST_PROXY = number of proxy hops in front of the API (default 1:
+// just nginx). Set 2 if a platform proxy sits in front of nginx. Don't set it
+// higher than the real hop count, or clients can spoof their IP.
+function trustProxySetting(): number | boolean | string {
+  const v = process.env.TRUST_PROXY ?? "1";
+  if (v === "true") return true;
+  if (v === "false") return false;
+  return /^\d+$/.test(v) ? Number(v) : v; // hop count, or an IP/CIDR list
+}
+
 const app = Fastify({
+  trustProxy: trustProxySetting(),
   logger: {
     level: process.env.LOG_LEVEL ?? (process.env.NODE_ENV === "production" ? "info" : "debug"),
   },

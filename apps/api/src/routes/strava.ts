@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import crypto from "crypto";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { userRateLimit } from "../middleware/userRateLimit.js";
 import { syncUser, syncActivityById, recomputeUser } from "../sync.js";
 import {
   registerWebhook,
@@ -46,7 +47,7 @@ export async function stravaRoutes(app: FastifyInstance) {
   // true when the session predates the profile:read_all scope.
   app.get(
     "/api/strava/gear",
-    { preHandler: requireAuth },
+    { preHandler: [requireAuth, userRateLimit("gear", 10, 15 * 60 * 1000)] },
     async (req, reply) => {
       const { userId } = (req as any).session;
       try {
@@ -61,7 +62,7 @@ export async function stravaRoutes(app: FastifyInstance) {
 
   app.post(
     "/api/strava/sync",
-    { preHandler: requireAuth },
+    { preHandler: [requireAuth, userRateLimit("sync", 3, 15 * 60 * 1000)] },
     async (req, reply) => {
       const { userId } = (req as any).session;
       syncUser(userId).catch(console.error); // fire and forget
