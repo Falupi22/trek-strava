@@ -7,6 +7,7 @@ import { authRoutes } from "./routes/auth.js";
 import { bikeRoutes } from "./routes/bikes.js";
 import { stravaRoutes } from "./routes/strava.js";
 import { startWorker } from "./worker.js";
+import { verifySession } from "./session.js";
 
 // The API sits behind nginx (and possibly a platform load balancer in front of
 // that), so the TCP peer is always a proxy. trustProxy makes req.ip the real
@@ -29,15 +30,33 @@ const app = Fastify({
 });
 
 await app.register(helmet);
+// Registered before rate-limit so cookies are parsed when its key is computed.
+await app.register(cookie);
 await app.register(rateLimit, {
   max: 100,
   timeWindow: "1 minute",
+  // Per user, not per IP: riders sharing an IP (club Wi-Fi, mobile carrier
+  // NAT) mustn't throttle each other. The session is verified, not just read,
+  // so a client can't dodge the limit by sending made-up cookies. Requests
+  // without a valid session (landing page, OAuth) fall back to the IP.
+  keyGenerator: async (req) => {
+    const auth = req.headers.authorization;
+    const token =
+      req.cookies?.session ?? (auth?.startsWith("Bearer ") ? auth.slice(7) : undefined);
+    if (token) {
+      try {
+        return `user:${(await verifySession(token)).userId}`;
+      } catch {
+        // invalid/expired: treat as anonymous
+      }
+    }
+    return `ip:${req.ip}`;
+  },
 });
 await app.register(cors, {
   origin: process.env.CORS_ORIGIN ?? "http://localhost:6000",
   credentials: true,
 });
-await app.register(cookie);
 
 await app.register(authRoutes);
 await app.register(bikeRoutes);
