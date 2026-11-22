@@ -106,6 +106,7 @@ export const en = {
     addAnother: "+ Save and add another bike",
     defaultQ: "Which bike should the dashboard open on?",
     defaultHint: "You can switch bikes or change this anytime.",
+    pickDefault: "Pick one to continue.",
     finishOrClear: (n: number) => `Finish or clear bike ${n} to continue.`,
     clearIt: "Clear it",
     addOne: "Add bike",

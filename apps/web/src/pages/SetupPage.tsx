@@ -38,14 +38,17 @@ export default function SetupPage() {
   const currentBlank = current.brandKind === null;
   const currentValid = isDraftValid(current, true);
   const bikes = currentValid ? [...saved, current] : saved;
-  const canFinish = bikes.length > 0 && (currentBlank || currentValid);
-  // The rider's pick; otherwise the bike linked to their Strava primary gear;
-  // otherwise the first bike entered.
-  const primaryGearId = gearList.find((g) => g.primary)?.id;
+  // With several bikes on first setup, the rider must pick the main one
+  // themselves — nothing is preselected. A single bike is the default by
+  // itself. (When adding to a garage, the existing default is kept.)
+  const choosingDefault = !adding && bikes.length > 1;
   const effectiveDefault =
     bikes.find((b) => b.key === defaultKey)?.key ??
-    (primaryGearId ? bikes.find((b) => b.stravaGearId === primaryGearId)?.key : undefined) ??
-    bikes[0]?.key;
+    (choosingDefault ? undefined : bikes[0]?.key);
+  const canFinish =
+    bikes.length > 0 &&
+    (currentBlank || currentValid) &&
+    (!choosingDefault || !!effectiveDefault);
 
   const takenGearIds = new Set(
     [
@@ -151,7 +154,7 @@ export default function SetupPage() {
         </button>
       </div>
 
-      {!adding && bikes.length > 1 && (
+      {choosingDefault && (
         <div className="card fade-in" style={{ marginTop: 16 }}>
           <div className="field" style={{ marginBottom: 0 }}>
             <span className="field-label">{s.defaultQ}</span>
@@ -171,7 +174,9 @@ export default function SetupPage() {
                 </button>
               ))}
             </div>
-            <p className="field-hint">{s.defaultHint}</p>
+            <p className="field-hint">
+              {effectiveDefault ? s.defaultHint : s.pickDefault}
+            </p>
           </div>
         </div>
       )}
