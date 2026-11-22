@@ -11,6 +11,7 @@ import DashboardPage from "./pages/DashboardPage";
 import CallbackPage from "./pages/CallbackPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
+import NotFoundPage from "./pages/NotFoundPage";
 
 function HomeRedirect() {
   const { authed, loading } = useAuth();
@@ -64,6 +65,8 @@ export default function App() {
         />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
+        {/* Anything else: a proper 404 instead of a blank page. */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </>
   );

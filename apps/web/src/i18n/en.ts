@@ -233,6 +233,12 @@ export const en = {
       ", disconnecting will permanently delete all your data from our systems within 48 hours — including your profile, activity statistics, and bike configurations. This cannot be undone.",
     disconnectConfirm: "Yes, disconnect & delete my data",
   },
+  notFound: {
+    code: "404",
+    title: "Page not found",
+    text: "The page you're looking for doesn't exist or has moved. Check the address, or head back to your bikes.",
+    home: "Go to the home page",
+  },
 };
 
 export type Dict = typeof en;

@@ -839,6 +839,21 @@ h3 {
   text-align: center;
 }
 
+/* 404 page */
+.not-found {
+  width: 100%;
+}
+
+.not-found-code {
+  margin: 0 0 8px;
+  font-size: clamp(56px, 14vw, 88px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--brand);
+  direction: ltr;
+}
+
 .spinner {
   width: 44px;
   height: 44px;
