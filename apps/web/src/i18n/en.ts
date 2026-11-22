@@ -135,6 +135,7 @@ export const en = {
     gearLoading: "Loading your Strava bikes…",
     notLinked: "Not linked",
     primary: " (primary)",
+    mostRidden: " (most ridden)",
     retired: " (retired)",
     taken: " (already added)",
     hintLinked: "Wear is calculated only from rides recorded on this Strava bike.",

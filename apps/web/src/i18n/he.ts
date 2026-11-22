@@ -133,6 +133,7 @@ export const he: Dict = {
     gearLoading: "טוענים את האופניים שלכם מ-Strava…",
     notLinked: "לא מקושרים",
     primary: " (ראשיים)",
+    mostRidden: " (הכי בשימוש)",
     retired: " (הוצאו משימוש)",
     taken: " (כבר נוספו)",
     hintLinked: "הבלאי מחושב רק לפי רכיבות שתועדו על האופניים האלה ב-Strava.",

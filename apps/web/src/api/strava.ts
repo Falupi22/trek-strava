@@ -4,6 +4,7 @@ export interface StravaBike {
   id: string;
   name: string;
   primary: boolean;
+  km: number;
   retired: boolean;
 }
 

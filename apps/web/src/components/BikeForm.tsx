@@ -127,6 +127,18 @@ export default function BikeForm({
   const { t } = useI18n();
   const f = t.bikeForm;
   const gear = useStravaGear();
+  // Tag one Strava bike to help the rider recognise it: the one with the most
+  // km; if none has any km yet, Strava's primary bike instead.
+  const highlighted = (() => {
+    const bikes = gear.data?.bikes ?? [];
+    const top = bikes.reduce<StravaBike | undefined>(
+      (best, g) => (g.km > (best?.km ?? 0) ? g : best),
+      undefined,
+    );
+    if (top) return { id: top.id, label: f.mostRidden };
+    const primary = bikes.find((g) => g.primary);
+    return primary ? { id: primary.id, label: f.primary } : undefined;
+  })();
   const set = (patch: Partial<BikeDraft>) => onChange({ ...d, ...patch });
   const setReplacedDate = (id: string, field: "month" | "year", val: string) => {
     const prev = d.replaced[id] ?? {};
@@ -287,7 +299,7 @@ export default function BikeForm({
                   return (
                     <option key={g.id} value={g.id} disabled={taken}>
                       {g.name}
-                      {g.primary ? f.primary : ""}
+                      {g.id === highlighted?.id ? highlighted.label : ""}
                       {g.retired ? f.retired : ""}
                       {taken ? f.taken : ""}
                     </option>

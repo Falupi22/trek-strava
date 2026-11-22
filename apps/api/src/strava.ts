@@ -93,6 +93,8 @@ export interface StravaBike {
   name: string;
   primary: boolean;
   retired: boolean;
+  /** Total distance Strava has recorded on this bike, in km. */
+  km: number;
 }
 
 export async function exchangeCode(code: string): Promise<{
@@ -238,6 +240,7 @@ export async function fetchAthleteBikes(
     name: String(b.name ?? b.nickname ?? "Unnamed bike"),
     primary: !!b.primary,
     retired: !!b.retired,
+    km: Number(b.distance ?? 0) / 1000, // Strava reports meters
   }));
 }
 
