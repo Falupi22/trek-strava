@@ -236,7 +236,7 @@ export const en = {
   notFound: {
     code: "404",
     title: "Page not found",
-    text: "The page you're looking for doesn't exist or has moved. Check the address, or head back to your bikes.",
+    text: "The page you're looking for doesn't exist or has moved.",
     home: "Go to the home page",
   },
 };
