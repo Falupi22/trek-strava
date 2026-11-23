@@ -143,6 +143,7 @@ export const en = {
     hintUnlinked: "Unlinked bikes count all rides that aren't on a linked Strava bike.",
     replacedQ: "Have any components been replaced since purchase?",
     whichReplaced: "Which components were replaced?",
+    replDateMissing: "Pick a month and year for each ticked component.",
     replMonthAria: (name: string) => `${name} replacement month`,
     replYearAria: (name: string) => `${name} replacement year`,
   },

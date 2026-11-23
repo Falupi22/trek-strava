@@ -141,6 +141,7 @@ export const he: Dict = {
     hintUnlinked: "לאופניים לא מקושרים נספרות כל הרכיבות שלא תועדו על אופניים מקושרים.",
     replacedQ: "האם הוחלפו רכיבים מאז הרכישה?",
     whichReplaced: "אילו רכיבים הוחלפו?",
+    replDateMissing: "יש לבחור חודש ושנה לכל רכיב מסומן.",
     replMonthAria: (name: string) => `חודש ההחלפה של ${name}`,
     replYearAria: (name: string) => `שנת ההחלפה של ${name}`,
   },

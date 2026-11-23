@@ -60,7 +60,13 @@ export function isDraftValid(d: BikeDraft, withReplacements: boolean): boolean {
   if (d.brandKind === "Trek" && !d.model) return false;
   if (!d.year || d.month === "") return false;
   if (withReplacements && d.hasReplacements === null) return false;
+  if (withReplacements && d.hasReplacements && !replacementDatesComplete(d)) return false;
   return true;
+}
+
+/** Every ticked replaced component has both a month and a year. */
+export function replacementDatesComplete(d: BikeDraft): boolean {
+  return Object.values(d.replaced).every((r) => !!r.year && !!r.month);
 }
 
 // YYYY-MM-01 built directly, so the date can't shift a day across time zones.
@@ -410,6 +416,9 @@ export default function BikeForm({
               );
             })}
           </div>
+          {!replacementDatesComplete(d) && (
+            <p className="field-hint">{f.replDateMissing}</p>
+          )}
         </div>
       )}
     </>
