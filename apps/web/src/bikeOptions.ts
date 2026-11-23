@@ -18,20 +18,40 @@ export const YEARS = Array.from(
   (_, i) => new Date().getFullYear() - i,
 );
 
+/** A year + month index ("0".."11", or "" if not chosen yet) from a form. */
+export interface YearMonth {
+  year: string;
+  month: string;
+}
+
+/** Years selectable for a date that can't be before `from` (e.g. the bike's purchase). */
+export function yearsFrom(from?: YearMonth): number[] {
+  return from?.year ? YEARS.filter((y) => y >= parseInt(from.year)) : YEARS;
+}
+
 /**
  * Month indexes (0-11) selectable for `year`: every month for past years, but
- * only up to the current month for this year, so no date lies in the future.
+ * only up to the current month for this year, so no date lies in the future —
+ * and, given `from`, none before that month either.
  */
-export function monthIndexesFor(year: string): number[] {
+export function monthIndexesFor(year: string, from?: YearMonth): number[] {
   const now = new Date();
   const last = parseInt(year) === now.getFullYear() ? now.getMonth() : 11;
-  return Array.from({ length: last + 1 }, (_, i) => i);
+  const first =
+    from?.year && from.month !== "" && parseInt(year) === parseInt(from.year)
+      ? parseInt(from.month)
+      : 0;
+  return Array.from({ length: last + 1 }, (_, i) => i).filter((i) => i >= first);
 }
 
 /** Clears `month` if it's no longer valid for `year` (e.g. year changed to this year). */
-export function keepMonthIfValid(year: string, month: string | undefined): string {
+export function keepMonthIfValid(
+  year: string,
+  month: string | undefined,
+  from?: YearMonth,
+): string {
   if (!month) return "";
-  return monthIndexesFor(year).includes(parseInt(month)) ? month : "";
+  return monthIndexesFor(year, from).includes(parseInt(month)) ? month : "";
 }
 
 export interface BikeLike {

@@ -8,6 +8,8 @@ import {
   bikeLabel,
   keepMonthIfValid,
   monthIndexesFor,
+  yearsFrom,
+  type YearMonth,
 } from "../bikeOptions";
 import { useI18n } from "../i18n";
 
@@ -140,11 +142,24 @@ export default function BikeForm({
     return primary ? { id: primary.id, label: f.primary } : undefined;
   })();
   const set = (patch: Partial<BikeDraft>) => onChange({ ...d, ...patch });
+  // A component can't have been replaced before the bike was bought, so its
+  // replacement date starts at the bike's purchase month.
+  const purchase: YearMonth = { year: d.year, month: d.month };
+  // Changing the purchase date drops replacement dates that now fall before it.
+  const setPurchase = (year: string, month: string) => {
+    const from: YearMonth = { year, month };
+    const replaced: BikeDraft["replaced"] = {};
+    for (const [id, r] of Object.entries(d.replaced)) {
+      if (r.year && year && parseInt(r.year) < parseInt(year)) replaced[id] = {};
+      else replaced[id] = { year: r.year, month: r.year ? keepMonthIfValid(r.year, r.month, from) : r.month };
+    }
+    set({ year, month, replaced });
+  };
   const setReplacedDate = (id: string, field: "month" | "year", val: string) => {
     const prev = d.replaced[id] ?? {};
     const next =
       field === "year"
-        ? { year: val, month: keepMonthIfValid(val, prev.month) }
+        ? { year: val, month: keepMonthIfValid(val, prev.month, purchase) }
         : { ...prev, month: val };
     set({ replaced: { ...d.replaced, [id]: next } });
   };
@@ -237,7 +252,7 @@ export default function BikeForm({
               aria-label={f.yearAria}
               value={d.year}
               onChange={(e) =>
-                set({ year: e.target.value, month: keepMonthIfValid(e.target.value, d.month) })
+                setPurchase(e.target.value, keepMonthIfValid(e.target.value, d.month))
               }
             >
               <option value="">{t.common.year}</option>
@@ -252,7 +267,7 @@ export default function BikeForm({
               aria-label={f.monthAria}
               value={d.month}
               disabled={!d.year}
-              onChange={(e) => set({ month: e.target.value })}
+              onChange={(e) => setPurchase(d.year, e.target.value)}
             >
               <option value="">{t.common.month}</option>
               {monthIndexesFor(d.year).map((i) => (
@@ -370,7 +385,7 @@ export default function BikeForm({
                         onChange={(e) => setReplacedDate(comp.id, "month", e.target.value)}
                       >
                         <option value="">{t.common.month}</option>
-                        {monthIndexesFor(d.replaced[comp.id]?.year ?? "").map((i) => (
+                        {monthIndexesFor(d.replaced[comp.id]?.year ?? "", purchase).map((i) => (
                           <option key={i} value={i}>
                             {t.months[i]}
                           </option>
@@ -383,7 +398,7 @@ export default function BikeForm({
                         onChange={(e) => setReplacedDate(comp.id, "year", e.target.value)}
                       >
                         <option value="">{t.common.year}</option>
-                        {YEARS.map((y) => (
+                        {yearsFrom(purchase).map((y) => (
                           <option key={y} value={y}>
                             {y}
                           </option>

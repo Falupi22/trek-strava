@@ -1,16 +1,18 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { bikesApi } from "../api/bikes";
-import { YEARS, keepMonthIfValid, monthIndexesFor } from "../bikeOptions";
+import { keepMonthIfValid, monthIndexesFor, yearsFrom, type YearMonth } from "../bikeOptions";
 import { useI18n } from "../i18n";
 
 interface Props {
   comp: any;
+  /** The bike's purchase month: a replacement can't be dated before it. */
+  purchase?: YearMonth;
   onClose: () => void;
   onSave: () => void;
 }
 
-export default function UpdateModal({ comp, onClose, onSave }: Props) {
+export default function UpdateModal({ comp, purchase, onClose, onSave }: Props) {
   const { t } = useI18n();
   const u = t.updateComp;
   const [step, setStep] = useState(1);
@@ -118,7 +120,7 @@ export default function UpdateModal({ comp, onClose, onSave }: Props) {
                     onChange={(e) => setMonth(e.target.value)}
                   >
                     <option value="">{t.common.month}</option>
-                    {monthIndexesFor(year).map((i) => (
+                    {monthIndexesFor(year, purchase).map((i) => (
                       <option key={i} value={i}>
                         {t.months[i]}
                       </option>
@@ -130,11 +132,11 @@ export default function UpdateModal({ comp, onClose, onSave }: Props) {
                     value={year}
                     onChange={(e) => {
                       setYear(e.target.value);
-                      setMonth((m) => keepMonthIfValid(e.target.value, m));
+                      setMonth((m) => keepMonthIfValid(e.target.value, m, purchase));
                     }}
                   >
                     <option value="">{t.common.year}</option>
-                    {YEARS.map((y) => (
+                    {yearsFrom(purchase).map((y) => (
                       <option key={y} value={y}>
                         {y}
                       </option>

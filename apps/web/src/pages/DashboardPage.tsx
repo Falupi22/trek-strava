@@ -560,6 +560,14 @@ export default function DashboardPage() {
       {updateModal && (
         <UpdateModal
           comp={updateModal}
+          purchase={
+            bike?.purchaseYear
+              ? {
+                  year: String(bike.purchaseYear),
+                  month: bike.purchaseMonth ? String(bike.purchaseMonth - 1) : "",
+                }
+              : undefined
+          }
           onClose={() => setUpdateModal(null)}
           onSave={() => {
             refreshAll();
